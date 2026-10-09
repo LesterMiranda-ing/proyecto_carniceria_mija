@@ -1,0 +1,110 @@
+{% extends "inventario/_layout.html" %}
+{% set activo = "historial" %}
+
+{% block titulo %}Historial de Ingreso de Canales - Carnicería La Mija{% endblock %}
+{% block encabezado %}Historial de Ingreso de Canales{% endblock %}
+
+{% block contenido %}
+<!-- Filtros -->
+<form method="get" action="{{ url_for('inventario.historial') }}"
+      class="no-imprimir flex flex-col sm:flex-row justify-between items-start sm:items-center gap-md mb-xl bg-surface-container-low p-md rounded-xl border border-outline-variant">
+    <div class="flex flex-wrap items-center gap-sm">
+        <div class="flex items-center bg-surface border border-outline-variant rounded-lg px-3 py-2 focus-within:ring-2 focus-within:ring-primary">
+            <span class="material-symbols-outlined text-secondary mr-2 text-sm">calendar_today</span>
+            <input class="border-none bg-transparent p-0 text-sm focus:ring-0 text-on-surface" type="date" name="desde" value="{{ fecha_desde }}">
+        </div>
+        <span class="text-secondary font-label-md">a</span>
+        <div class="flex items-center bg-surface border border-outline-variant rounded-lg px-3 py-2 focus-within:ring-2 focus-within:ring-primary">
+            <span class="material-symbols-outlined text-secondary mr-2 text-sm">calendar_today</span>
+            <input class="border-none bg-transparent p-0 text-sm focus:ring-0 text-on-surface" type="date" name="hasta" value="{{ fecha_hasta }}">
+        </div>
+        <div class="flex items-center bg-surface border border-outline-variant rounded-lg px-3 py-2 focus-within:ring-2 focus-within:ring-primary">
+            <span class="material-symbols-outlined text-secondary mr-2 text-sm">search</span>
+            <input class="border-none bg-transparent p-0 text-sm focus:ring-0 text-on-surface w-40" type="text" name="q" placeholder="Proveedor o lote..." value="{{ busqueda }}">
+        </div>
+        <button type="submit" class="px-4 py-2 bg-surface border border-outline-variant rounded-lg hover:bg-surface-container font-label-md text-sm">Filtrar</button>
+    </div>
+    <div class="flex items-center gap-sm">
+        <a class="flex items-center gap-2 px-4 py-2 bg-surface border border-outline-variant rounded-lg hover:bg-surface-container font-label-md text-sm"
+           href="{{ url_for('inventario.exportar_historial_excel', desde=fecha_desde, hasta=fecha_hasta, q=busqueda) }}">
+            <span class="material-symbols-outlined text-sm">download</span>
+            Excel
+        </a>
+        <a class="flex items-center gap-2 px-6 py-2 bg-primary text-on-primary rounded-lg hover:bg-surface-tint font-label-md transition-colors h-12"
+           href="{{ url_for('inventario.entrada_canal') }}">
+            <span class="material-symbols-outlined">add</span>
+            Nuevo Ingreso
+        </a>
+    </div>
+</form>
+
+<!-- Tabla -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden shadow-sm">
+    <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+            <thead class="bg-surface-container-low border-b border-outline-variant">
+                <tr>
+                    <th class="px-md py-4 font-label-md text-secondary font-semibold whitespace-nowrap">Fecha de Ingreso</th>
+                    <th class="px-md py-4 font-label-md text-secondary font-semibold">Proveedor</th>
+                    <th class="px-md py-4 font-label-md text-secondary font-semibold">Lote #</th>
+                    <th class="px-md py-4 font-label-md text-secondary font-semibold text-right">Peso (lbs)</th>
+                    <th class="px-md py-4 font-label-md text-secondary font-semibold text-right">Costo / lb (Q)</th>
+                    <th class="px-md py-4 font-label-md text-secondary font-semibold text-right">Total Inv. (Q)</th>
+                    <th class="px-md py-4 font-label-md text-secondary font-semibold text-center">Estado</th>
+                    <th class="px-md py-4 font-label-md text-secondary font-semibold">Registrado por</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-surface-variant font-body-md">
+                {% for r in registros %}
+                <tr class="hover:bg-surface-container transition-colors group h-16">
+                    <td class="px-md py-3 text-on-surface whitespace-nowrap">{{ r.creado_en.strftime('%d %b, %Y - %I:%M %p') }}</td>
+                    <td class="px-md py-3 text-on-surface font-medium">{{ r.proveedor }}</td>
+                    <td class="px-md py-3 text-primary font-semibold">{{ r.numero_lote }}</td>
+                    <td class="px-md py-3 text-on-surface text-right font-data-display text-[16px] tracking-normal leading-normal">{{ '%.1f'|format(r.peso_lbs) }}</td>
+                    <td class="px-md py-3 text-on-surface text-right font-data-display text-[16px] tracking-normal leading-normal">{{ '%.2f'|format(r.costo_por_libra) }}</td>
+                    <td class="px-md py-3 text-on-surface text-right font-data-display text-[16px] tracking-normal leading-normal font-semibold">{{ '%.2f'|format(r.costo_total) }}</td>
+                    <td class="px-md py-3 text-center">
+                        {% set clases = {
+                            'En Cuarto Frío': 'bg-tertiary-container text-on-tertiary-container',
+                            'Procesado': 'bg-secondary-container text-on-secondary-container',
+                            'Observación': 'bg-error-container text-on-error-container'
+                        } %}
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold {{ clases.get(r.estado, 'bg-surface-variant text-on-surface') }}">
+                            {{ r.estado }}
+                        </span>
+                    </td>
+                    <td class="px-md py-3 text-secondary">{{ r.registrado_por or "—" }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td class="px-md py-6 text-secondary text-center" colspan="8">No se encontraron registros con los filtros aplicados.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Paginación -->
+    <div class="no-imprimir bg-surface-container p-4 border-t border-outline-variant flex items-center justify-between">
+        <span class="text-sm text-secondary font-label-md">
+            {% if total_registros > 0 %}
+            Mostrando {{ (pagina - 1) * por_pagina + 1 }} - {{ [(pagina * por_pagina), total_registros]|min }} de {{ total_registros }} registros
+            {% else %}
+            Sin registros
+            {% endif %}
+        </span>
+        <div class="flex items-center gap-2">
+            {% set qs = {'desde': fecha_desde, 'hasta': fecha_hasta, 'q': busqueda} %}
+            <a class="p-2 border border-outline-variant rounded bg-surface hover:bg-surface-variant text-secondary {{ 'opacity-50 pointer-events-none' if pagina <= 1 else '' }}"
+               href="{{ url_for('inventario.historial', pagina=pagina-1, **qs) }}">
+                <span class="material-symbols-outlined text-sm">chevron_left</span>
+            </a>
+            <span class="px-3 py-1 bg-primary text-on-primary rounded font-label-md">{{ pagina }} / {{ total_paginas }}</span>
+            <a class="p-2 border border-outline-variant rounded bg-surface hover:bg-surface-variant text-secondary {{ 'opacity-50 pointer-events-none' if pagina >= total_paginas else '' }}"
+               href="{{ url_for('inventario.historial', pagina=pagina+1, **qs) }}">
+                <span class="material-symbols-outlined text-sm">chevron_right</span>
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

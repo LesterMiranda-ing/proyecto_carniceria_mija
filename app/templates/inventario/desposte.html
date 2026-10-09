@@ -1,0 +1,266 @@
+{% extends "inventario/_layout.html" %}
+{% set activo = "desposte" %}
+
+{% block titulo %}Desposte y Control de Merma - Carnicería La Mija{% endblock %}
+{% block encabezado %}Desposte y Control de Merma{% endblock %}
+
+{% block contenido %}
+{% if not canal_seleccionado %}
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-xl flex flex-col items-center text-center gap-md">
+    <span class="material-symbols-outlined text-tertiary text-5xl">task_alt</span>
+    <h3 class="font-headline-md text-headline-md">No hay canales pendientes de desposte</h3>
+    <p class="text-secondary font-body-md max-w-md">Todos los canales ingresados ya fueron procesados. Registra un nuevo ingreso para poder despostarlo.</p>
+    <a href="{{ url_for('inventario.entrada_canal') }}" class="px-lg py-sm bg-primary text-on-primary font-bold rounded-xl hover:opacity-90 transition-all">
+        Registrar Entrada de Canal
+    </a>
+</div>
+{% else %}
+<form method="post" action="{{ url_for('inventario.registrar_desposte_ruta') }}" id="form-desposte" class="flex flex-col gap-lg">
+<input type="hidden" name="entrada_canal_id" value="{{ canal_seleccionado.id }}">
+
+<!-- Selector de canal + KPI de merma -->
+<section class="grid grid-cols-1 lg:grid-cols-12 gap-lg items-stretch">
+    <div class="lg:col-span-8 bg-surface-container-lowest border border-outline-variant rounded-xl p-lg flex flex-col md:flex-row justify-between items-center gap-lg">
+        <div class="flex-1 w-full">
+            <label class="block text-label-md font-bold text-secondary mb-xs" for="selector-canal">Canal en Proceso</label>
+            <div class="relative group w-full">
+                <select id="selector-canal" class="w-full h-12 bg-surface-container border-outline-variant border-2 text-headline-md font-headline-md rounded-lg px-md appearance-none focus:border-primary focus:ring-1 focus:ring-primary"
+                        onchange="if (this.value) window.location.href = '{{ url_for('inventario.desposte') }}?canal_id=' + this.value">
+                    {% for c in canales_pendientes %}
+                    <option value="{{ c.id }}" {{ 'selected' if c.id == canal_seleccionado.id else '' }}>
+                        {{ c.numero_lote }} — {{ c.proveedor }} ({{ '%.1f'|format(c.peso_lbs) }} lbs)
+                    </option>
+                    {% endfor %}
+                </select>
+                <span class="material-symbols-outlined absolute right-md top-3 pointer-events-none text-secondary">expand_more</span>
+            </div>
+        </div>
+        <div class="flex gap-lg border-l border-outline-variant pl-lg">
+            <div class="text-center">
+                <p class="text-label-md text-secondary">Lote</p>
+                <p class="font-headline-md text-on-surface">{{ canal_seleccionado.numero_lote }}</p>
+            </div>
+            <div class="text-center">
+                <p class="text-label-md text-secondary">Fecha Ingreso</p>
+                <p class="font-headline-md text-on-surface">{{ canal_seleccionado.fecha_entrada.strftime('%d/%m') }}</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="lg:col-span-4 bg-primary text-on-primary rounded-xl p-lg shadow-lg flex flex-col items-center justify-center text-center">
+        <p class="text-label-md uppercase tracking-widest font-bold text-on-primary-container">Merma Actual</p>
+        <div class="my-xs">
+            <span id="kpi-merma-pct" class="font-data-display text-headline-lg">0.00%</span>
+        </div>
+        <p class="text-label-md opacity-80"><span id="kpi-merma-lbs">0.00</span> lbs de desperdicio técnico</p>
+    </div>
+</section>
+
+<section class="grid grid-cols-1 xl:grid-cols-3 gap-lg">
+    <!-- Grid de cortes (bento) -->
+    <div class="xl:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-md">
+        {% for tipo in tipos_corte %}
+        <div class="rounded-xl p-md flex flex-col gap-sm border
+            {{ 'bg-error-container border-error' if tipo.categoria == 'merma'
+               else ('bg-surface-container-high border-outline-variant' if tipo.categoria == 'subproducto'
+               else 'bg-surface-container-lowest border-outline-variant') }}">
+            <div class="flex justify-between items-center">
+                <h3 class="font-label-xl font-bold {{ 'text-error' if tipo.categoria == 'merma' else ('text-secondary' if tipo.categoria == 'subproducto' else 'text-primary') }}">
+                    {{ tipo.nombre }}
+                </h3>
+                <span class="px-sm py-xs rounded text-xs font-bold
+                    {{ 'bg-error text-on-error' if tipo.categoria == 'merma'
+                       else ('bg-surface-variant text-on-surface-variant' if tipo.categoria == 'subproducto'
+                       else 'bg-secondary-container text-on-secondary-container') }}">
+                    {{ tipo.etiqueta }}
+                </span>
+            </div>
+            <div class="flex items-center gap-md">
+                <div class="flex-1 relative">
+                    <input type="number" step="0.01" min="0" value="0.00"
+                           name="corte_{{ tipo.campo }}" data-rol="corte" data-categoria="{{ tipo.categoria }}"
+                           class="peso-corte w-full h-14 bg-surface text-center font-data-display text-headline-md border-2 rounded-lg focus:ring-0
+                               {{ 'border-error focus:border-error' if tipo.categoria == 'merma' else 'border-outline-variant focus:border-primary' }}">
+                    <span class="absolute right-md top-4 font-bold {{ 'text-error' if tipo.categoria == 'merma' else 'text-secondary' }}">LBS</span>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Resumen y acciones -->
+    <div class="flex flex-col gap-lg">
+        <div class="bg-surface-container-high rounded-2xl p-lg flex flex-col gap-md border border-outline-variant shadow-sm">
+            <h3 class="font-headline-md text-headline-md border-b border-outline-variant pb-sm">Resumen de Pesaje</h3>
+            <div class="flex justify-between items-center">
+                <span class="text-body-md text-secondary">Peso Inicial Canal</span>
+                <span class="font-label-xl" id="resumen-peso-inicial">{{ '%.2f'|format(canal_seleccionado.peso_lbs) }} lbs</span>
+            </div>
+            <div class="flex justify-between items-center">
+                <span class="text-body-md text-secondary">Suma de Cortes</span>
+                <span class="font-label-xl" id="resumen-suma-cortes">0.00 lbs</span>
+            </div>
+            <div class="flex justify-between items-center">
+                <span class="text-body-md text-secondary">Tara (cajas/bandejas/ganchos)</span>
+                <span class="font-label-xl" id="resumen-tara">0.00 lbs</span>
+            </div>
+            <div class="bg-surface-container-lowest rounded-xl p-md mt-sm border-2 border-dashed border-outline-variant">
+                <div class="flex justify-between items-center">
+                    <span class="font-bold text-primary">Merma (diferencia neta)</span>
+                    <span class="font-data-display text-headline-lg text-primary" id="resumen-diferencia">0.00 lbs</span>
+                </div>
+            </div>
+            <div class="mt-md">
+                <div class="flex justify-between mb-xs">
+                    <span class="text-xs font-bold text-secondary">RENDIMIENTO (mínimo {{ rendimiento_minimo }}%)</span>
+                    <span class="text-xs font-bold" id="resumen-rendimiento-pct">0%</span>
+                </div>
+                <div class="w-full bg-surface-variant rounded-full h-3">
+                    <div id="barra-rendimiento" class="bg-tertiary-container h-3 rounded-full transition-all" style="width: 0%;"></div>
+                </div>
+                <p id="resumen-rendimiento-msg" class="text-xs text-tertiary mt-sm flex items-center gap-xs">
+                    <span class="material-symbols-outlined text-sm">check_circle</span>
+                    <span>Ingresa los pesos de cada corte.</span>
+                </p>
+            </div>
+        </div>
+
+        <button type="submit" class="w-full py-xl bg-primary text-on-primary rounded-2xl shadow-xl flex flex-col items-center justify-center gap-sm hover:opacity-90 transition-all active:scale-95">
+            <span class="material-symbols-outlined text-[48px]" style="font-variation-settings: 'FILL' 1;">inventory</span>
+            <span class="font-headline-md text-headline-md">Finalizar Desposte</span>
+            <span class="text-sm opacity-70">Actualizar Inventario Global</span>
+        </button>
+
+        <button type="button" onclick="document.getElementById('modal-tara').classList.remove('hidden'); document.getElementById('modal-tara').classList.add('flex')"
+                class="flex items-center justify-center gap-sm p-md border-2 border-outline-variant text-secondary font-bold rounded-xl hover:bg-surface-variant transition-colors">
+            <span class="material-symbols-outlined">scale</span>
+            Configurar Tara de Cajas
+        </button>
+    </div>
+</section>
+</form>
+
+<!-- Modal de Tara -->
+<div id="modal-tara" class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/50 backdrop-blur-sm p-gutter">
+    <div class="bg-surface-container-lowest w-full max-w-2xl rounded-2xl shadow-xl overflow-hidden border border-outline-variant flex flex-col">
+        <div class="p-lg border-b border-outline-variant flex justify-between items-center bg-surface">
+            <h2 class="font-headline-md text-primary">Configuración de Tara de Cajas</h2>
+            <button type="button" class="text-secondary hover:text-on-surface" onclick="document.getElementById('modal-tara').classList.add('hidden'); document.getElementById('modal-tara').classList.remove('flex')">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <div class="p-lg overflow-y-auto max-h-[70vh]">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="text-label-md text-secondary border-b border-outline-variant">
+                        <th class="pb-sm font-bold">Ítem</th>
+                        <th class="pb-sm font-bold text-center">Cantidad</th>
+                        <th class="pb-sm font-bold text-center">Peso Unit. (lbs)</th>
+                        <th class="pb-sm font-bold text-right">Subtotal</th>
+                    </tr>
+                </thead>
+                <tbody class="text-body-md">
+                    {% for tara in tipos_tara %}
+                    <tr class="border-b border-outline-variant">
+                        <td class="py-md font-bold">{{ tara.item }}</td>
+                        <td class="py-md">
+                            <input type="number" min="0" step="1" value="0" form="form-desposte"
+                                   name="tara_{{ tara.campo }}_cantidad" data-rol="tara-cantidad"
+                                   class="tara-cantidad w-20 h-10 bg-surface-container border border-outline-variant rounded text-center focus:ring-primary focus:border-primary">
+                        </td>
+                        <td class="py-md">
+                            <input type="number" min="0" step="0.01" value="{{ tara.peso_unitario_defecto }}" form="form-desposte"
+                                   name="tara_{{ tara.campo }}_peso" data-rol="tara-peso"
+                                   class="tara-peso w-24 h-10 bg-surface-container border border-outline-variant rounded text-center focus:ring-primary focus:border-primary">
+                        </td>
+                        <td class="py-md text-right font-bold subtotal-tara">0.00 lbs</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <div class="mt-lg p-md bg-primary-container/10 rounded-xl border border-primary/20 flex justify-between items-center">
+                <span class="font-bold text-primary">Peso Total de Tara a Descontar</span>
+                <span class="font-data-display text-headline-md text-primary" id="modal-tara-total">0.00 lbs</span>
+            </div>
+        </div>
+        <div class="p-lg bg-surface border-t border-outline-variant flex justify-end gap-md">
+            <button type="button" class="px-lg py-sm bg-primary text-on-primary font-bold rounded-xl hover:opacity-90 transition-all active:scale-95"
+                    onclick="document.getElementById('modal-tara').classList.add('hidden'); document.getElementById('modal-tara').classList.remove('flex')">Listo</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function () {
+        const pesoInicial = {{ canal_seleccionado.peso_lbs }};
+        const rendimientoMinimo = {{ rendimiento_minimo }};
+
+        const inputsCorte = Array.from(document.querySelectorAll('.peso-corte'));
+        const inputsTaraCantidad = Array.from(document.querySelectorAll('.tara-cantidad'));
+        const inputsTaraPeso = Array.from(document.querySelectorAll('.tara-peso'));
+        const filasTara = Array.from(document.querySelectorAll('#modal-tara tbody tr'));
+
+        function numero(input) {
+            const v = parseFloat(input.value);
+            return isNaN(v) ? 0 : v;
+        }
+
+        function recalcular() {
+            let sumaTodo = 0;
+            let sumaUtil = 0;
+            inputsCorte.forEach(function (input) {
+                const v = numero(input);
+                sumaTodo += v;
+                if (input.dataset.categoria !== 'merma') sumaUtil += v;
+            });
+
+            let tara = 0;
+            filasTara.forEach(function (fila) {
+                const cantidad = numero(fila.querySelector('.tara-cantidad'));
+                const pesoUnit = numero(fila.querySelector('.tara-peso'));
+                const subtotal = cantidad * pesoUnit;
+                tara += subtotal;
+                fila.querySelector('.subtotal-tara').textContent = subtotal.toFixed(2) + ' lbs';
+            });
+
+            const pesoNeto = sumaTodo - tara;
+            const diferencia = pesoInicial - pesoNeto;
+            const mermaPct = pesoInicial ? (diferencia / pesoInicial) * 100 : 0;
+            const rendimientoPct = pesoInicial ? (sumaUtil / pesoInicial) * 100 : 0;
+
+            document.getElementById('resumen-suma-cortes').textContent = sumaTodo.toFixed(2) + ' lbs';
+            document.getElementById('resumen-tara').textContent = tara.toFixed(2) + ' lbs';
+            document.getElementById('resumen-diferencia').textContent = diferencia.toFixed(2) + ' lbs';
+            document.getElementById('kpi-merma-pct').textContent = mermaPct.toFixed(2) + '%';
+            document.getElementById('kpi-merma-lbs').textContent = diferencia.toFixed(2);
+            document.getElementById('modal-tara-total').textContent = tara.toFixed(2) + ' lbs';
+
+            document.getElementById('resumen-rendimiento-pct').textContent = rendimientoPct.toFixed(1) + '%';
+            const barra = document.getElementById('barra-rendimiento');
+            barra.style.width = Math.max(0, Math.min(100, rendimientoPct)) + '%';
+
+            const msg = document.getElementById('resumen-rendimiento-msg');
+            if (rendimientoPct >= rendimientoMinimo) {
+                barra.classList.remove('bg-error');
+                barra.classList.add('bg-tertiary-container');
+                msg.innerHTML = '<span class="material-symbols-outlined text-sm">check_circle</span><span>Dentro de los parámetros normales de merma técnica.</span>';
+                msg.classList.remove('text-error');
+                msg.classList.add('text-tertiary');
+            } else {
+                barra.classList.remove('bg-tertiary-container');
+                barra.classList.add('bg-error');
+                msg.innerHTML = '<span class="material-symbols-outlined text-sm">warning</span><span>Rendimiento por debajo del mínimo esperado (' + rendimientoMinimo + '%). Revisa la merma.</span>';
+                msg.classList.remove('text-tertiary');
+                msg.classList.add('text-error');
+            }
+        }
+
+        inputsCorte.concat(inputsTaraCantidad).concat(inputsTaraPeso).forEach(function (input) {
+            input.addEventListener('input', recalcular);
+        });
+
+        recalcular();
+    })();
+</script>
+{% endif %}
+{% endblock %}

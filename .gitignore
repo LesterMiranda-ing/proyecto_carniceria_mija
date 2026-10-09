@@ -1,0 +1,21 @@
+# Archivos y carpetas específicas del proyecto
+_prototipo_stitch/
+ARQUITECTURA_Y_REGLAS.md
+GUIA_EQUIPO.md
+*.log
+app/static/uploads/
+
+# Entornos virtuales y variables de entorno (NUNCA subir .env: tiene contraseñas)
+venv/
+env/
+.env/
+.env
+
+# Caché y binarios de Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Bases de datos y archivos locales
+instance/
+*.db

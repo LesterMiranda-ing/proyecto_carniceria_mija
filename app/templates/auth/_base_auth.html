@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block titulo %}Carnicería La Mija{% endblock %}</title>
+<script>
+    // Aplica el tema guardado ANTES de pintar la página (mismo criterio que el resto del sistema).
+    (function () {
+        try {
+            const guardado = localStorage.getItem("tema");
+            const prefiereOscuro = window.matchMedia("(prefers-color-scheme: dark)").matches;
+            if (guardado === "oscuro" || (!guardado && prefiereOscuro)) {
+                document.documentElement.classList.add("dark");
+            }
+        } catch (e) { /* localStorage no disponible: queda modo claro */ }
+    })();
+</script>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+<script id="tailwind-config">
+    tailwind.config = {
+        darkMode: "class",
+        theme: {
+            extend: {
+                colors: {
+                    "primary": "#8f000d", "primary-container": "#b22222", "on-primary": "#ffffff",
+                    "primary-fixed": "#ffdad6", "on-primary-fixed": "#410003",
+                    "secondary": "#555f6d", "tertiary": "#004f35",
+                    "tertiary-container": "#006a48", "on-tertiary-container": "#60eeb1",
+                    "outline": "#8e706d", "outline-variant": "#e2beba",
+                    "surface": "#f8f9fa", "surface-container": "#edeeef", "surface-container-lowest": "#ffffff",
+                    "on-surface": "#191c1d", "on-surface-variant": "#5a403e",
+                    "background": "#f8f9fa", "on-background": "#191c1d",
+                    "error": "#ba1a1a", "error-container": "#ffdad6", "on-error-container": "#93000a"
+                },
+                borderRadius: { DEFAULT: "0.25rem", lg: "0.5rem", xl: "0.75rem", full: "9999px" },
+                spacing: { xs: "4px", sm: "8px", md: "16px", lg: "24px", xl: "32px", gutter: "24px" },
+                fontFamily: { "label-md": ["Inter"], "headline-md": ["Inter"], "headline-lg": ["Inter"], "body-md": ["Inter"] },
+                fontSize: {
+                    "label-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0.05em", "fontWeight": "500"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                    "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}]
+                }
+            }
+        }
+    }
+</script>
+<style>
+    .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    body { font-family: 'Inter', sans-serif; transition: background-color .2s ease, color .2s ease; }
+    .fondo-puntos { background-color: #f8f9fa; background-image: radial-gradient(#e2beba 0.5px, transparent 0.5px); background-size: 24px 24px; }
+
+    /* Modo oscuro (mismo enfoque que app/templates/inventario/_layout.html) */
+    .dark body { color: #f0e9e8; }
+    .dark .fondo-puntos { background-color: #14100f; background-image: radial-gradient(#3a2f2e 0.5px, transparent 0.5px); }
+    .dark .bg-surface-container-lowest { background-color: #1d1918 !important; }
+    .dark .bg-surface { background-color: #14100f !important; }
+    .dark .bg-surface-container { background-color: #241f1e !important; }
+    .dark .border-outline-variant { border-color: #433a38 !important; }
+    .dark .text-on-surface { color: #f0e9e8 !important; }
+    .dark .text-on-surface-variant, .dark .text-secondary { color: #c9bdbb !important; }
+    .dark .text-primary { color: #ffb4ac !important; }
+    .dark .hover\:bg-surface-container:hover { background-color: #2e2827 !important; }
+    .dark input { color: #f0e9e8; }
+    .dark .peer:checked + div { background-color: #5c1a1a !important; color: #ffdad6 !important; border-color: #ffb4ac !important; }
+    .dark .bg-error-container { background-color: #93000a !important; }
+    .dark .text-on-error-container { color: #ffdad6 !important; }
+    .dark .bg-tertiary-container { background-color: #08543a !important; }
+    .dark .text-on-tertiary-container { color: #6ffbbe !important; }
+</style>
+</head>
+<body class="bg-background text-on-background min-h-screen flex items-center justify-center p-gutter fondo-puntos">
+
+<button id="boton-tema" type="button" title="Cambiar a modo claro/oscuro"
+        class="fixed top-4 right-4 flex items-center justify-center w-10 h-10 rounded-full bg-surface-container-lowest border border-outline-variant text-secondary hover:bg-surface-container transition-colors">
+    <span id="icono-tema-claro" class="material-symbols-outlined">dark_mode</span>
+    <span id="icono-tema-oscuro" class="material-symbols-outlined hidden">light_mode</span>
+</button>
+
+<main class="w-full max-w-md">
+    <div class="flex flex-col items-center mb-xl">
+        <div class="w-24 h-24 rounded-xl bg-primary flex items-center justify-center mb-md shadow-md">
+            <span class="material-symbols-outlined text-on-primary" style="font-size: 56px; font-variation-settings: 'FILL' 1;">restaurant</span>
+        </div>
+        <h1 class="font-headline-lg text-headline-lg text-primary tracking-tight text-center">Carnicería La Mija</h1>
+        <p class="font-body-md text-body-md text-secondary mt-xs text-center">Sistema de Gestión e Inventario</p>
+    </div>
+
+    {% with mensajes = get_flashed_messages(with_categories=true) %}
+        {% for categoria, mensaje in mensajes %}
+        <div class="mb-md p-md rounded-lg font-body-md text-body-md {{ 'bg-error-container text-on-error-container' if categoria == 'error' else 'bg-tertiary-container text-on-tertiary-container' }}">
+            {{ mensaje }}
+        </div>
+        {% endfor %}
+    {% endwith %}
+
+    {% block contenido %}{% endblock %}
+</main>
+
+<script>
+    (function () {
+        const html = document.documentElement;
+        const boton = document.getElementById("boton-tema");
+        const iconoClaro = document.getElementById("icono-tema-claro");
+        const iconoOscuro = document.getElementById("icono-tema-oscuro");
+        function sincronizarIcono() {
+            const esOscuro = html.classList.contains("dark");
+            iconoClaro.classList.toggle("hidden", esOscuro);
+            iconoOscuro.classList.toggle("hidden", !esOscuro);
+        }
+        boton.addEventListener("click", function () {
+            html.classList.toggle("dark");
+            try { localStorage.setItem("tema", html.classList.contains("dark") ? "oscuro" : "claro"); } catch (e) {}
+            sincronizarIcono();
+        });
+        sincronizarIcono();
+    })();
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

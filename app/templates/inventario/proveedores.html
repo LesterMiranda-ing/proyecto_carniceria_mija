@@ -1,0 +1,202 @@
+{% extends "inventario/_layout.html" %}
+{% set activo = "proveedores" %}
+
+{% block titulo %}Proveedores - Carnicería La Mija{% endblock %}
+{% block encabezado %}Proveedores{% endblock %}
+
+{% block contenido %}
+<div class="max-w-7xl mx-auto space-y-lg">
+
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-md">
+        <div>
+            <h2 class="font-headline-lg text-headline-lg text-on-surface">Directorio de Proveedores</h2>
+            <p class="text-body-md text-secondary">Los proveedores registrados aparecen como sugerencia al ingresar un canal.</p>
+        </div>
+        <a href="{{ url_for('inventario.exportar_proveedores_excel', q=busqueda) }}"
+           class="no-imprimir flex items-center gap-2 px-4 py-2 bg-surface border border-outline-variant rounded-lg hover:bg-surface-container font-label-md text-sm">
+            <span class="material-symbols-outlined text-sm">download</span>
+            Excel
+        </a>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-3 gap-lg">
+        {% if puede('proveedores.crear') %}
+        <!-- Agregar proveedor -->
+        <section class="no-imprimir xl:col-span-1 bg-surface-container-lowest p-xl rounded-xl border border-outline-variant shadow-sm self-start">
+            <div class="flex items-center gap-md mb-lg">
+                <div class="bg-primary-container p-sm rounded-lg text-on-primary-container">
+                    <span class="material-symbols-outlined">local_shipping</span>
+                </div>
+                <h3 class="font-headline-md text-headline-md">Nuevo Proveedor</h3>
+            </div>
+            <form method="post" action="{{ url_for('inventario.crear_proveedor') }}" class="space-y-md">
+                <div class="space-y-xs">
+                    <label class="font-label-md text-secondary" for="prov-nombre">Nombre *</label>
+                    <input id="prov-nombre" name="nombre" required maxlength="150" type="text" placeholder="Ej: Finca San Juan"
+                           class="w-full min-h-[48px] bg-surface border-2 border-outline-variant rounded-lg px-md focus:border-primary focus:ring-0 outline-none transition-all">
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-md">
+                    <div class="space-y-xs">
+                        <label class="font-label-md text-secondary" for="prov-telefono">Teléfono</label>
+                        <input id="prov-telefono" name="telefono" maxlength="30" type="tel" placeholder="0000-0000"
+                               class="w-full min-h-[48px] bg-surface border-2 border-outline-variant rounded-lg px-md focus:border-primary focus:ring-0 outline-none transition-all">
+                    </div>
+                    <div class="space-y-xs">
+                        <label class="font-label-md text-secondary" for="prov-nit">NIT</label>
+                        <input id="prov-nit" name="nit" maxlength="20" type="text" placeholder="CF si no aplica"
+                               class="w-full min-h-[48px] bg-surface border-2 border-outline-variant rounded-lg px-md focus:border-primary focus:ring-0 outline-none transition-all">
+                    </div>
+                </div>
+                <div class="space-y-xs">
+                    <label class="font-label-md text-secondary" for="prov-direccion">Dirección</label>
+                    <input id="prov-direccion" name="direccion" maxlength="255" type="text" placeholder="Ubicación de la finca o bodega"
+                           class="w-full min-h-[48px] bg-surface border-2 border-outline-variant rounded-lg px-md focus:border-primary focus:ring-0 outline-none transition-all">
+                </div>
+                <button type="submit" class="w-full bg-primary text-on-primary px-xl py-md rounded-xl font-bold hover:opacity-90 transition-all min-h-[48px] flex items-center justify-center gap-sm">
+                    <span class="material-symbols-outlined">save</span>
+                    Guardar Proveedor
+                </button>
+            </form>
+        </section>
+        {% endif %}
+
+        <!-- Listado -->
+        <section class="{{ 'xl:col-span-2' if puede('proveedores.crear') else 'xl:col-span-3' }} bg-surface-container-lowest rounded-xl border border-outline-variant overflow-hidden">
+            <div class="p-md border-b border-outline-variant flex flex-col sm:flex-row justify-between sm:items-center gap-sm bg-surface-container-low">
+                <span class="font-label-xl text-label-xl">{{ proveedores|length }} proveedor{{ '' if proveedores|length == 1 else 'es' }}</span>
+                <form method="get" action="{{ url_for('inventario.proveedores') }}" class="no-imprimir flex items-center gap-sm">
+                    <div class="flex items-center bg-surface border border-outline-variant rounded-lg px-3 py-1.5">
+                        <span class="material-symbols-outlined text-secondary text-sm mr-2">search</span>
+                        <input type="text" name="q" value="{{ busqueda }}" placeholder="Buscar por nombre o NIT..." class="border-none bg-transparent p-0 text-sm focus:ring-0 w-48">
+                    </div>
+                    <button type="submit" class="px-4 py-2 bg-surface border border-outline-variant rounded-lg hover:bg-surface-container font-label-md text-sm">Buscar</button>
+                </form>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-surface-container text-secondary uppercase text-[12px] tracking-widest font-bold">
+                            <th class="px-lg py-md">Proveedor</th>
+                            <th class="px-lg py-md">Contacto</th>
+                            <th class="px-lg py-md">NIT</th>
+                            <th class="px-lg py-md text-center">Lotes</th>
+                            <th class="px-lg py-md">Última Entrada</th>
+                            {% if puede('proveedores.editar') or puede('proveedores.eliminar') %}
+                            <th class="px-lg py-md text-center no-imprimir">Acciones</th>
+                            {% endif %}
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-outline-variant">
+                        {% for p in proveedores %}
+                        <tr class="hover:bg-surface-container-low transition-colors">
+                            <td class="px-lg py-lg">
+                                <div class="font-bold text-on-surface">{{ p.nombre }}</div>
+                                {% if p.direccion %}<div class="text-xs text-secondary">{{ p.direccion }}</div>{% endif %}
+                            </td>
+                            <td class="px-lg py-lg text-body-md">{{ p.telefono or '—' }}</td>
+                            <td class="px-lg py-lg text-body-md">{{ p.nit or '—' }}</td>
+                            <td class="px-lg py-lg text-center font-bold">{{ p.lotes }}</td>
+                            <td class="px-lg py-lg text-body-md">
+                                {% if p.ultima_entrada %}{{ p.ultima_entrada.strftime('%d %b, %Y') }}{% else %}<span class="text-secondary">Sin entradas</span>{% endif %}
+                            </td>
+                            {% if puede('proveedores.editar') or puede('proveedores.eliminar') %}
+                            <td class="px-lg py-lg no-imprimir">
+                                <div class="flex justify-center gap-sm">
+                                    {% if puede('proveedores.editar') %}
+                                    <button type="button" title="Editar"
+                                            class="btn-editar-proveedor material-symbols-outlined p-sm hover:bg-primary-fixed hover:text-primary rounded-lg transition-all"
+                                            data-id="{{ p.id }}" data-nombre="{{ p.nombre }}" data-telefono="{{ p.telefono or '' }}"
+                                            data-nit="{{ p.nit or '' }}" data-direccion="{{ p.direccion or '' }}">edit</button>
+                                    {% endif %}
+                                    {% if puede('proveedores.eliminar') %}
+                                    <form method="post" action="{{ url_for('inventario.eliminar_proveedor', proveedor_id=p.id) }}" class="form-eliminar-proveedor" data-nombre="{{ p.nombre }}">
+                                        <button type="submit" title="Eliminar" class="material-symbols-outlined p-sm hover:bg-error-container hover:text-error rounded-lg transition-all">delete</button>
+                                    </form>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            {% endif %}
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td class="px-lg py-8 text-secondary text-center" colspan="6">
+                                {{ 'No hay proveedores que coincidan con la búsqueda.' if busqueda else 'Aún no hay proveedores registrados.' }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+</div>
+
+{% if puede('proveedores.editar') %}
+<!-- Modal: editar proveedor -->
+<div id="modal-editar-proveedor" class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/50 backdrop-blur-sm p-gutter">
+    <div class="bg-surface-container-lowest w-full max-w-lg rounded-2xl shadow-xl overflow-hidden border border-outline-variant flex flex-col">
+        <div class="p-lg border-b border-outline-variant flex justify-between items-center bg-surface">
+            <h2 class="font-headline-md text-primary">Editar Proveedor</h2>
+            <button type="button" class="text-secondary hover:text-on-surface btn-cerrar-modal-proveedor">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <form id="form-editar-proveedor" method="post" class="p-lg space-y-md">
+            <div class="space-y-xs">
+                <label class="font-label-md text-secondary" for="editar-prov-nombre">Nombre *</label>
+                <input id="editar-prov-nombre" name="nombre" required maxlength="150" class="w-full h-11 px-md border-2 border-outline-variant rounded-lg focus:border-primary focus:ring-0 text-sm bg-surface">
+            </div>
+            <div class="grid grid-cols-2 gap-md">
+                <div class="space-y-xs">
+                    <label class="font-label-md text-secondary" for="editar-prov-telefono">Teléfono</label>
+                    <input id="editar-prov-telefono" name="telefono" maxlength="30" class="w-full h-11 px-md border-2 border-outline-variant rounded-lg focus:border-primary focus:ring-0 text-sm bg-surface">
+                </div>
+                <div class="space-y-xs">
+                    <label class="font-label-md text-secondary" for="editar-prov-nit">NIT</label>
+                    <input id="editar-prov-nit" name="nit" maxlength="20" class="w-full h-11 px-md border-2 border-outline-variant rounded-lg focus:border-primary focus:ring-0 text-sm bg-surface">
+                </div>
+            </div>
+            <div class="space-y-xs">
+                <label class="font-label-md text-secondary" for="editar-prov-direccion">Dirección</label>
+                <input id="editar-prov-direccion" name="direccion" maxlength="255" class="w-full h-11 px-md border-2 border-outline-variant rounded-lg focus:border-primary focus:ring-0 text-sm bg-surface">
+            </div>
+            <p class="text-xs text-secondary">Cambiar el nombre no modifica los lotes ya registrados: conservan el nombre con el que entraron.</p>
+            <div class="flex justify-end gap-md pt-md">
+                <button type="button" class="btn-cerrar-modal-proveedor px-lg py-sm border-2 border-outline-variant text-secondary font-bold rounded-xl hover:bg-surface-variant transition-colors">Cancelar</button>
+                <button type="submit" class="px-lg py-sm bg-primary text-on-primary font-bold rounded-xl hover:opacity-90 transition-all active:scale-95">Guardar Cambios</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+<script>
+    (function () {
+        const modal = document.getElementById('modal-editar-proveedor');
+        const form = document.getElementById('form-editar-proveedor');
+        const urlPlantilla = "{{ url_for('inventario.editar_proveedor', proveedor_id=0) }}"; // termina en ".../0/editar"
+
+        document.querySelectorAll('.form-eliminar-proveedor').forEach(function (frm) {
+            frm.addEventListener('submit', function (ev) {
+                if (!confirm('¿Eliminar a ' + frm.dataset.nombre + '? Los lotes ya registrados conservarán su nombre.')) ev.preventDefault();
+            });
+        });
+
+        if (!modal) return;
+        function cerrar() { modal.classList.add('hidden'); modal.classList.remove('flex'); }
+        document.querySelectorAll('.btn-cerrar-modal-proveedor').forEach(function (b) { b.addEventListener('click', cerrar); });
+
+        document.querySelectorAll('.btn-editar-proveedor').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                form.action = urlPlantilla.replace(/\/0\/editar$/, '/' + btn.dataset.id + '/editar');
+                document.getElementById('editar-prov-nombre').value = btn.dataset.nombre || '';
+                document.getElementById('editar-prov-telefono').value = btn.dataset.telefono || '';
+                document.getElementById('editar-prov-nit').value = btn.dataset.nit || '';
+                document.getElementById('editar-prov-direccion').value = btn.dataset.direccion || '';
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            });
+        });
+    })();
+</script>
+{% endblock %}

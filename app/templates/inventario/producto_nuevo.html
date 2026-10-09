@@ -1,0 +1,228 @@
+{% extends "inventario/_layout.html" %}
+{% set activo = "inventario" %}
+{# Mismo formulario para alta y edición: la ruta de edición pasa `producto`. #}
+{% set p = producto if producto is defined else none %}
+{% set editando = p is not none %}
+
+{% block titulo %}{{ 'Editar Producto' if editando else 'Registro de Nuevo Producto' }} - Carnicería La Mija{% endblock %}
+{% block encabezado %}{{ 'Editar Producto' if editando else 'Registro de Nuevo Producto' }}{% endblock %}
+
+{% block contenido %}
+<div class="mb-md">
+    <a href="{{ url_for('inventario.catalogo_productos') }}" class="inline-flex items-center gap-xs text-secondary hover:text-primary font-label-md text-sm">
+        <span class="material-symbols-outlined text-sm">arrow_back</span>
+        Volver a Inventario
+    </a>
+</div>
+
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant p-lg max-w-5xl mx-auto shadow-sm">
+    <form method="post" action="{{ url_for('inventario.editar_producto', producto_id=p.id) if editando else url_for('inventario.nuevo_producto') }}" enctype="multipart/form-data" class="space-y-xl">
+
+        {% if editando %}
+        <div class="bg-surface-container-low border border-outline-variant rounded-lg p-md flex flex-col sm:flex-row sm:items-center justify-between gap-sm">
+            <p class="font-label-md text-secondary">Código <strong class="text-primary">{{ p.codigo }}</strong></p>
+            <p class="text-xs text-secondary">El stock actual y la unidad no se editan aquí: cambian solo con desposte y ventas. Si renombras un producto que viene de desposte, los próximos despostes de ese corte crearán un producto nuevo con el nombre original.</p>
+        </div>
+        {% endif %}
+
+        <!-- Foto + Datos básicos -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-xl">
+            <div class="col-span-1 flex flex-col">
+                <label class="block font-label-md text-label-md text-secondary mb-sm">Fotografía del Producto</label>
+                <label for="foto" class="flex-1 min-h-[200px] border-2 border-dashed border-outline-variant rounded-lg bg-surface-container flex flex-col items-center justify-center p-md hover:bg-surface-variant transition-colors cursor-pointer group overflow-hidden">
+                    {% if editando and p.foto_archivo %}
+                    <img id="previsualizacion-foto" src="{{ url_for('static', filename='uploads/productos/' + p.foto_archivo) }}" class="w-full h-full object-cover rounded-lg" alt="Foto actual">
+                    {% else %}
+                    <img id="previsualizacion-foto" class="hidden w-full h-full object-cover rounded-lg" alt="Previsualización">
+                    {% endif %}
+                    <span id="placeholder-foto" class="flex flex-col items-center {{ 'hidden' if editando and p.foto_archivo else '' }}">
+                        <span class="material-symbols-outlined text-4xl text-secondary group-hover:text-primary mb-sm">add_photo_alternate</span>
+                        <span class="font-label-md text-label-md text-secondary text-center group-hover:text-primary">Haz clic para subir<br>o arrastra una imagen aquí</span>
+                    </span>
+                    <input id="foto" name="foto" accept="image/png,image/jpeg" class="hidden" type="file">
+                </label>
+                <p class="text-xs text-secondary mt-xs">JPG o PNG</p>
+            </div>
+
+            <div class="col-span-1 md:col-span-2 space-y-md">
+                <div>
+                    <label class="block font-label-md text-label-md text-secondary mb-xs" for="nombre">Nombre del Producto *</label>
+                    <input class="w-full h-12 px-md border-2 border-outline-variant rounded-lg bg-surface focus:outline-none focus:ring-0 focus:border-primary transition-shadow"
+                           id="nombre" name="nombre" placeholder="Ej. Lomo Fino, Costilla St. Louis" required type="text"
+                           value="{{ p.nombre if editando else '' }}">
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-md">
+                    <div>
+                        <label class="block font-label-md text-label-md text-secondary mb-xs" for="categoria">Categoría *</label>
+                        <select class="w-full h-12 px-md border-2 border-outline-variant rounded-lg bg-surface focus:outline-none focus:ring-0 focus:border-primary transition-shadow"
+                                id="categoria" name="categoria" required>
+                            <option disabled {{ '' if editando else 'selected' }} value="">Seleccionar categoría</option>
+                            {% for cat in categorias %}
+                            <option value="{{ cat }}" {{ 'selected' if editando and p.categoria == cat else '' }}>{{ cat }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-label-md text-label-md text-secondary mb-xs" for="unidad_venta">Unidad de Medida *</label>
+                        {# En edición queda bloqueada (un <select disabled> no se envía; la ruta la ignora). #}
+                        <select class="w-full h-12 px-md border-2 border-outline-variant rounded-lg bg-surface focus:outline-none focus:ring-0 focus:border-primary transition-shadow {{ 'opacity-60 cursor-not-allowed' if editando else '' }}"
+                                id="unidad_venta" name="unidad_venta" required {{ 'disabled' if editando else '' }}>
+                            <option value="lb" {{ 'selected' if editando and p.unidad_venta == 'lb' else '' }}>Libras (lb)</option>
+                            <option value="unidad" {{ 'selected' if editando and p.unidad_venta == 'unidad' else '' }}>Unidad (ud)</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block font-label-md text-label-md text-secondary mb-xs" for="descripcion">Descripción / Notas (Opcional)</label>
+                    <textarea class="w-full px-md py-sm border-2 border-outline-variant rounded-lg bg-surface focus:outline-none focus:ring-0 focus:border-primary transition-shadow resize-none"
+                              id="descripcion" name="descripcion" placeholder="Detalles del corte, proveedor habitual..." rows="3">{{ (p.descripcion or '') if editando else '' }}</textarea>
+                </div>
+            </div>
+        </div>
+
+        <hr class="border-t border-outline-variant">
+
+        <!-- Precios + Stock -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-xl">
+            <div class="space-y-md">
+                <h3 class="font-label-xl text-label-xl flex items-center gap-sm">
+                    <span class="material-symbols-outlined text-primary">payments</span>
+                    Precios
+                </h3>
+                <div>
+                    <label class="block font-label-md text-label-md text-secondary mb-xs" for="costo">Precio de Costo (Opcional)</label>
+                    <div class="relative">
+                        <span class="absolute left-md top-1/2 -translate-y-1/2 text-secondary font-bold">Q</span>
+                        <input class="w-full h-12 pl-8 pr-md border-2 border-outline-variant rounded-lg bg-surface focus:outline-none focus:ring-0 focus:border-primary transition-shadow text-right"
+                               id="costo" name="costo" min="0" placeholder="0.00" step="0.01" type="number"
+                               value="{{ '%.2f'|format(p.costo) if editando else '' }}">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-md">
+                    <div>
+                        <label class="block font-label-md text-label-md text-secondary mb-xs" for="precio_detalle">Precio Detalle *</label>
+                        <div class="relative">
+                            <span class="absolute left-md top-1/2 -translate-y-1/2 text-secondary font-bold">Q</span>
+                            <input class="w-full h-12 pl-8 pr-md border-2 border-outline-variant rounded-lg bg-surface focus:outline-none focus:border-primary focus:ring-0 transition-shadow text-right font-bold"
+                                   id="precio_detalle" name="precio_detalle" min="0" placeholder="0.00" required step="0.01" type="number"
+                                   value="{{ '%.2f'|format(p.precio_detalle) if editando else '' }}">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block font-label-md text-label-md text-secondary mb-xs" for="precio_mayoreo">Precio Mayoreo *</label>
+                        <div class="relative">
+                            <span class="absolute left-md top-1/2 -translate-y-1/2 text-secondary font-bold">Q</span>
+                            <input class="w-full h-12 pl-8 pr-md border-2 border-outline-variant rounded-lg bg-surface focus:outline-none focus:border-primary focus:ring-0 transition-shadow text-right font-bold"
+                                   id="precio_mayoreo" name="precio_mayoreo" min="0" placeholder="0.00" required step="0.01" type="number"
+                                   value="{{ '%.2f'|format(p.precio_mayoreo) if editando else '' }}">
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-surface-container-low p-sm rounded-lg flex justify-between items-center border border-outline-variant">
+                    <span class="font-label-md text-label-md text-secondary">Margen Estimado (sobre detalle):</span>
+                    <span class="font-body-md font-bold" id="margen-estimado">-- %</span>
+                </div>
+            </div>
+
+            <div class="space-y-md">
+                <h3 class="font-label-xl text-label-xl flex items-center gap-sm">
+                    <span class="material-symbols-outlined text-primary">inventory</span>
+                    Configuración de Stock
+                </h3>
+                <div class="grid grid-cols-2 gap-md">
+                    <div>
+                        <label class="block font-label-md text-label-md text-secondary mb-xs" for="stock_actual">{{ 'Stock Actual (solo lectura)' if editando else 'Stock Inicial' }}</label>
+                        {% if editando %}
+                        <input class="w-full h-12 px-md border-2 border-outline-variant rounded-lg bg-surface-container text-right opacity-70 cursor-not-allowed"
+                               id="stock_actual" type="number" value="{{ '%.2f'|format(p.stock_actual) }}" disabled>
+                        {% else %}
+                        <input class="w-full h-12 px-md border-2 border-outline-variant rounded-lg bg-surface focus:outline-none focus:ring-0 focus:border-primary transition-shadow text-right"
+                               id="stock_actual" name="stock_actual" min="0" placeholder="0.00" step="0.01" type="number" value="0">
+                        {% endif %}
+                    </div>
+                    <div>
+                        <label class="block font-label-md text-label-md text-secondary mb-xs flex items-center gap-xs" for="stock_minimo">
+                            Alerta Crítica
+                            <span class="material-symbols-outlined text-sm text-error">warning</span>
+                        </label>
+                        <div class="relative">
+                            <input class="w-full h-12 pr-12 pl-md border-2 border-error/40 rounded-lg bg-error-container/10 focus:outline-none focus:ring-0 focus:border-error transition-shadow text-right"
+                                   id="stock_minimo" name="stock_minimo" min="0" placeholder="Min." step="0.01" type="number"
+                                   value="{{ '%.2f'|format(p.stock_minimo) if editando else '10' }}">
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                                <span class="text-secondary font-label-md text-label-md unidad-display">{{ p.unidad_venta if editando else 'lb' }}</span>
+                            </div>
+                        </div>
+                        <p class="text-xs text-secondary mt-1">Alerta de bajo stock al llegar a este nivel (crítico a la mitad).</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Acciones -->
+        <div class="flex justify-end gap-md pt-lg border-t border-outline-variant">
+            <a href="{{ url_for('inventario.catalogo_productos') }}"
+               class="h-12 px-lg rounded-lg border-2 border-secondary text-secondary font-label-md text-label-md font-bold hover:bg-surface-variant transition-colors flex items-center">
+                Cancelar
+            </a>
+            <button type="submit" class="h-12 px-xl rounded-lg bg-primary text-on-primary font-label-md text-label-md font-bold hover:opacity-90 transition-colors flex items-center gap-sm shadow-sm">
+                <span class="material-symbols-outlined">save</span>
+                {{ 'Guardar Cambios' if editando else 'Guardar Producto' }}
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+    (function () {
+        // Vista previa de la foto seleccionada
+        const inputFoto = document.getElementById('foto');
+        const previsualizacion = document.getElementById('previsualizacion-foto');
+        const placeholder = document.getElementById('placeholder-foto');
+        inputFoto.addEventListener('change', function () {
+            const archivo = inputFoto.files[0];
+            if (!archivo) {
+                previsualizacion.classList.add('hidden');
+                placeholder.classList.remove('hidden');
+                return;
+            }
+            const lector = new FileReader();
+            lector.onload = function (e) {
+                previsualizacion.src = e.target.result;
+                previsualizacion.classList.remove('hidden');
+                placeholder.classList.add('hidden');
+            };
+            lector.readAsDataURL(archivo);
+        });
+
+        // Unidad de medida -> actualiza la etiqueta de "Alerta Crítica"
+        document.getElementById('unidad_venta').addEventListener('change', function () {
+            document.querySelectorAll('.unidad-display').forEach(function (el) {
+                el.textContent = this.value;
+            }.bind(this));
+        });
+
+        // Margen estimado en vivo: (precioDetalle - costo) / precioDetalle
+        const costoInput = document.getElementById('costo');
+        const precioDetalleInput = document.getElementById('precio_detalle');
+        const margenSpan = document.getElementById('margen-estimado');
+
+        function actualizarMargen() {
+            const costo = parseFloat(costoInput.value);
+            const precio = parseFloat(precioDetalleInput.value);
+            if (!precio || isNaN(precio)) {
+                margenSpan.textContent = '-- %';
+                return;
+            }
+            const costoVal = isNaN(costo) ? 0 : costo;
+            const margen = ((precio - costoVal) / precio) * 100;
+            margenSpan.textContent = margen.toFixed(1) + ' %';
+            margenSpan.classList.toggle('text-error', margen < 0);
+            margenSpan.classList.toggle('text-tertiary', margen >= 0);
+        }
+        costoInput.addEventListener('input', actualizarMargen);
+        precioDetalleInput.addEventListener('input', actualizarMargen);
+        actualizarMargen();  // en edición ya vienen valores cargados
+    })();
+</script>
+{% endblock %}

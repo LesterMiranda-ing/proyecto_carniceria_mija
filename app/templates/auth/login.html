@@ -1,0 +1,104 @@
+{% extends "auth/_base_auth.html" %}
+
+{% block titulo %}Iniciar Sesión - Carnicería La Mija{% endblock %}
+
+{% block contenido %}
+{% if sin_usuarios %}
+<div class="mb-md p-md rounded-lg bg-error-container text-on-error-container font-body-md text-body-md">
+    <strong>No hay usuarios configurados.</strong> Define <code>ADMIN_USUARIO</code> y <code>ADMIN_PASSWORD</code>
+    (mínimo 8 caracteres, con letras y números) en el archivo <code>.env</code> y reinicia la aplicación.
+</div>
+{% endif %}
+
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-xl shadow-sm">
+    <h2 class="font-headline-md text-headline-md text-on-surface mb-lg">Iniciar Sesión</h2>
+    <form method="post" action="{{ url_for('auth.login') }}" class="space-y-lg" autocomplete="on">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="next" value="{{ siguiente }}">
+
+        <div class="space-y-sm">
+            <label class="font-label-md text-label-md text-on-surface-variant flex items-center gap-xs" for="usuario">
+                <span class="material-symbols-outlined text-[18px]">person</span>
+                Usuario
+            </label>
+            <input class="w-full h-[48px] px-md border-2 border-outline-variant rounded-lg bg-surface text-on-surface focus:border-primary focus:ring-0 transition-all font-body-md text-body-md placeholder:text-outline"
+                   id="usuario" name="usuario" placeholder="ej. jgarcia" required type="text"
+                   value="{{ usuario_ingresado }}" autocapitalize="none" autocomplete="username" autofocus>
+        </div>
+
+        <div class="space-y-sm">
+            <label class="font-label-md text-label-md text-on-surface-variant flex items-center gap-xs" for="password">
+                <span class="material-symbols-outlined text-[18px]">lock</span>
+                Contraseña
+            </label>
+            <div class="relative">
+                <input class="w-full h-[48px] pl-md pr-12 border-2 border-outline-variant rounded-lg bg-surface text-on-surface focus:border-primary focus:ring-0 transition-all font-body-md text-body-md placeholder:text-outline"
+                       id="password" name="password" placeholder="••••••••" required type="password" autocomplete="current-password">
+                <button id="ver-password" type="button" title="Mostrar u ocultar contraseña"
+                        class="absolute right-md top-1/2 -translate-y-1/2 text-secondary hover:text-primary transition-colors">
+                    <span class="material-symbols-outlined">visibility</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="space-y-sm">
+            <label class="font-label-md text-label-md text-on-surface-variant flex items-center gap-xs">
+                <span class="material-symbols-outlined text-[18px]">badge</span>
+                Seleccionar Rol
+            </label>
+            {% set iconos = {'gerente': 'manage_accounts', 'carnicero': 'restaurant', 'cajero': 'payments'} %}
+            <div class="grid gap-sm {{ 'grid-cols-1' if roles|length <= 1 else ('grid-cols-2' if roles|length == 2 else 'grid-cols-3') }}">
+                {% for rol in roles %}
+                <label class="cursor-pointer">
+                    <input class="hidden peer" name="rol_id" type="radio" value="{{ rol.id }}" required
+                           {{ 'checked' if rol_elegido == rol.id else '' }}>
+                    <div class="flex flex-col items-center justify-center p-sm border-2 border-outline-variant rounded-lg peer-checked:border-primary peer-checked:bg-primary-fixed peer-checked:text-on-primary-fixed hover:bg-surface-container transition-all">
+                        <span class="material-symbols-outlined mb-xs">{{ iconos.get(rol.nombre|lower, 'badge') }}</span>
+                        <span class="font-label-md text-label-md">{{ rol.nombre }}</span>
+                    </div>
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+
+        <button class="w-full h-[56px] bg-primary text-on-primary font-headline-md text-headline-md rounded-xl hover:bg-primary-container hover:shadow-lg active:scale-95 transition-all flex items-center justify-center gap-md" type="submit">
+            Iniciar Sesión
+            <span class="material-symbols-outlined">login</span>
+        </button>
+
+        <div class="pt-md text-center">
+            <button id="olvido" type="button" class="font-label-md text-label-md text-secondary hover:text-primary transition-colors underline underline-offset-4">¿Olvidó su contraseña?</button>
+            <p id="olvido-ayuda" class="hidden mt-sm text-sm text-secondary">Pide al Gerente que restablezca tu contraseña desde Configuración.</p>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    (function () {
+        const campo = document.getElementById('password');
+        const boton = document.getElementById('ver-password');
+        boton.addEventListener('click', function () {
+            const oculto = campo.type === 'password';
+            campo.type = oculto ? 'text' : 'password';
+            boton.querySelector('.material-symbols-outlined').textContent = oculto ? 'visibility_off' : 'visibility';
+        });
+
+        document.getElementById('olvido').addEventListener('click', function () {
+            document.getElementById('olvido-ayuda').classList.toggle('hidden');
+        });
+
+        // Recuerda el último rol elegido en este equipo (solo comodidad; el servidor valida igual).
+        const radios = Array.from(document.querySelectorAll('input[name="rol_id"]'));
+        try {
+            if (!radios.some(r => r.checked)) {
+                const guardado = localStorage.getItem('ultimo_rol_login');
+                const previo = radios.find(r => r.value === guardado);
+                if (previo) previo.checked = true;
+            }
+            radios.forEach(r => r.addEventListener('change', () => localStorage.setItem('ultimo_rol_login', r.value)));
+        } catch (e) {}
+    })();
+</script>
+{% endblock %}

@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<title>{% block titulo %}Carnicería La Mija{% endblock %}</title>
+<script>
+    // Protección CSRF automática: añade el token a TODOS los formularios POST y a todos los
+    // fetch() que cambian datos, para que ninguna pantalla nueva quede sin proteger por olvido.
+    (function () {
+        const token = document.querySelector('meta[name="csrf-token"]').content;
+
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('form').forEach(function (formulario) {
+                const metodo = (formulario.getAttribute('method') || 'get').toLowerCase();
+                if (metodo === 'post' && !formulario.querySelector('input[name="csrf_token"]')) {
+                    const campo = document.createElement('input');
+                    campo.type = 'hidden';
+                    campo.name = 'csrf_token';
+                    campo.value = token;
+                    formulario.appendChild(campo);
+                }
+            });
+        });
+
+        const fetchOriginal = window.fetch;
+        window.fetch = function (url, opciones) {
+            opciones = opciones || {};
+            const metodo = (opciones.method || 'GET').toUpperCase();
+            if (metodo !== 'GET' && metodo !== 'HEAD') {
+                opciones.headers = Object.assign({}, opciones.headers || {}, { 'X-CSRF-Token': token });
+            }
+            return fetchOriginal.call(this, url, opciones);
+        };
+    })();
+</script>
+<script>
+    // Aplica el tema guardado ANTES de pintar la página, para evitar parpadeo.
+    (function () {
+        try {
+            const guardado = localStorage.getItem("tema");
+            const prefiereOscuro = window.matchMedia("(prefers-color-scheme: dark)").matches;
+            if (guardado === "oscuro" || (!guardado && prefiereOscuro)) {
+                document.documentElement.classList.add("dark");
+            }
+        } catch (e) { /* localStorage no disponible: se ignora, queda modo claro */ }
+    })();
+</script>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+<script id="tailwind-config">
+    tailwind.config = {
+        darkMode: "class",
+        theme: {
+            extend: {
+                colors: {
+                    "on-primary-container": "#ffc8c2",
+                    "on-secondary": "#ffffff",
+                    "inverse-surface": "#2e3132",
+                    "tertiary": "#004f35",
+                    "on-surface-variant": "#5a403e",
+                    "surface-tint": "#b52424",
+                    "surface-container": "#edeeef",
+                    "on-secondary-container": "#596372",
+                    "on-background": "#191c1d",
+                    "on-primary": "#ffffff",
+                    "tertiary-container": "#006a48",
+                    "on-surface": "#191c1d",
+                    "on-error": "#ffffff",
+                    "outline-variant": "#e2beba",
+                    "secondary": "#555f6d",
+                    "surface-variant": "#e1e3e4",
+                    "error": "#ba1a1a",
+                    "surface-bright": "#f8f9fa",
+                    "surface-container-lowest": "#ffffff",
+                    "surface-container-highest": "#e1e3e4",
+                    "surface-container-low": "#f3f4f5",
+                    "surface": "#f8f9fa",
+                    "background": "#f8f9fa",
+                    "outline": "#8e706d",
+                    "on-error-container": "#93000a",
+                    "on-tertiary-container": "#60eeb1",
+                    "surface-container-high": "#e7e8e9",
+                    "primary-container": "#b22222",
+                    "primary": "#8f000d",
+                    "error-container": "#ffdad6",
+                    "secondary-container": "#d6e0f1",
+                    "on-secondary-fixed": "#121c28",
+                    "primary-fixed": "#ffdad6",
+                    "on-primary-fixed": "#410003",
+                    "tertiary-fixed": "#6ffbbe",
+                    "on-tertiary-fixed-variant": "#005236",
+                    "secondary-fixed": "#d9e3f4",
+                    "on-secondary-fixed-variant": "#3e4755"
+                },
+                borderRadius: { DEFAULT: "0.25rem", lg: "0.5rem", xl: "0.75rem", full: "9999px" },
+                spacing: { sm: "8px", gutter: "24px", margin: "24px", xs: "4px", xl: "32px", md: "16px", base: "8px", lg: "24px" },
+                fontFamily: {
+                    "label-xl": ["Inter"], "data-display": ["Inter"], "label-md": ["Inter"],
+                    "headline-lg-mobile": ["Inter"], "body-lg": ["Inter"], "headline-md": ["Inter"],
+                    "body-md": ["Inter"], "headline-lg": ["Inter"]
+                },
+                fontSize: {
+                    "label-xl": ["20px", {"lineHeight": "24px", "letterSpacing": "0.01em", "fontWeight": "600"}],
+                    "data-display": ["48px", {"lineHeight": "48px", "letterSpacing": "-0.04em", "fontWeight": "800"}],
+                    "label-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0.05em", "fontWeight": "500"}],
+                    "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "700"}],
+                    "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                    "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}]
+                }
+            }
+        }
+    }
+</script>
+<style>
+    body { background-color: #f8f9fa; color: #191c1d; font-family: 'Inter', sans-serif; transition: background-color .2s ease, color .2s ease; }
+    .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+
+    /* --- Modo oscuro ---
+       Tailwind se carga vía CDN y genera sus utilidades en tiempo de ejecución, por lo que
+       inyecta su hoja de estilos DESPUÉS de este bloque. Por eso los overrides de abajo usan
+       !important: así siempre ganan cuando la clase .dark está en <html>, sin tener que
+       reescribir "dark:" en cada elemento de cada plantilla del módulo. */
+    .dark body { background-color: #14100f; color: #f0e9e8; }
+
+    .dark .bg-background,
+    .dark .bg-surface,
+    .dark .bg-surface-container-lowest { background-color: #14100f !important; }
+
+    .dark .bg-surface-container-low { background-color: #1d1918 !important; }
+    .dark .bg-surface-container { background-color: #241f1e !important; }
+    .dark .bg-surface-container-high { background-color: #2e2827 !important; }
+    .dark .hover\:bg-surface-container:hover,
+    .dark .hover\:bg-surface-variant:hover,
+    .dark .hover\:bg-surface-container-high:hover { background-color: #332c2b !important; }
+    .dark .bg-surface-variant { background-color: #332c2b !important; }
+
+    .dark .border-outline-variant,
+    .dark .divide-outline-variant > :not([hidden]) ~ :not([hidden]),
+    .dark .divide-surface-variant > :not([hidden]) ~ :not([hidden]) { border-color: #433a38 !important; }
+
+    .dark .text-on-surface,
+    .dark .text-on-background { color: #f0e9e8 !important; }
+    .dark .text-secondary { color: #c9bdbb !important; }
+    .dark .text-outline { color: #a89c9a !important; }
+
+    .dark .text-primary { color: #ffb4ac !important; }
+    .dark .text-primary-container { color: #ffb4ac !important; }
+
+    .dark .bg-tertiary-container { background-color: #08543a !important; }
+    .dark .text-tertiary { color: #4edea3 !important; }
+    .dark .text-on-tertiary-container { color: #6ffbbe !important; }
+
+    .dark .bg-secondary-container { background-color: #3c4656 !important; }
+    .dark .text-on-secondary-container { color: #d6e0f1 !important; }
+
+    .dark .bg-error-container { background-color: #93000a !important; }
+    .dark .text-on-error-container { color: #ffdad6 !important; }
+
+    /* Tarjeta de opción seleccionada (radios tipo "peer", p. ej. selector de rol) */
+    .dark .peer:checked + div { background-color: #5c1a1a !important; color: #ffdad6 !important; border-color: #ffb4ac !important; }
+
+    .dark input,
+    .dark select,
+    .dark textarea { color: #f0e9e8; }
+    .dark input::placeholder { color: #8a7e7c; }
+
+    /* --- Reportes: botón "Imprimir" en cada módulo ---
+       `.no-imprimir` la usan las plantillas de cada módulo para ocultar en el reporte lo que
+       no aporta (filtros, paginación, columnas de Acciones); `.solo-imprimir` es el encabezado
+       de reporte (logo + módulo + fecha) que reemplaza al sidebar/topbar, ocultos al imprimir. */
+    .solo-imprimir { display: none; }
+    @media print {
+        aside, header, .no-imprimir { display: none !important; }
+        main { padding: 0 !important; }
+        .p-gutter { padding: 0 !important; max-width: none !important; }
+        * { box-shadow: none !important; }
+        .solo-imprimir { display: block !important; margin-bottom: 16px; }
+
+        /* Fuerza tema claro en el papel aunque la pantalla esté en modo oscuro. */
+        body, .dark body { background: #ffffff !important; color: #000000 !important; }
+        .dark .bg-background, .dark .bg-surface, .dark .bg-surface-container-lowest,
+        .dark .bg-surface-container-low, .dark .bg-surface-container, .dark .bg-surface-container-high,
+        .bg-background, .bg-surface, .bg-surface-container-lowest, .bg-surface-container-low,
+        .bg-surface-container, .bg-surface-container-high { background-color: #ffffff !important; }
+        .dark .text-on-surface, .dark .text-on-background, .dark .text-secondary, .dark .text-outline,
+        .dark .text-primary, .dark .text-primary-container { color: #000000 !important; }
+        .dark .border-outline-variant, .dark .divide-outline-variant > :not([hidden]) ~ :not([hidden]),
+        .dark .divide-surface-variant > :not([hidden]) ~ :not([hidden]) { border-color: #cccccc !important; }
+    }
+</style>
+{% block head_extra %}{% endblock %}
+</head>
+<body class="flex min-h-screen">
+<aside class="hidden lg:flex flex-col h-screen p-md sticky top-0 bg-surface-container-low w-64 border-r border-outline-variant">
+    <div class="mb-xl px-sm flex flex-col items-center text-center">
+        <img src="{{ url_for('static', filename='img/logo-carniceria.png') }}" alt="Carnicería La Mija" class="w-32 h-auto">
+    </div>
+    {# Solo se muestran los módulos a los que el usuario tiene acceso. Ocultarlos es comodidad;
+       la seguridad real la aplica el servidor en cada ruta (ver app/auth/permisos.py). #}
+    <nav class="flex-grow space-y-xs">
+        {% if puede('dashboard.ver') %}
+        <a class="flex items-center gap-md px-md py-sm rounded-lg font-bold transition-colors duration-200 {{ 'bg-primary-container text-on-primary-container' if activo == 'dashboard' else 'text-secondary hover:bg-surface-variant' }}"
+           href="{{ url_for('dashboard.inicio') }}">
+            <span class="material-symbols-outlined">dashboard</span>
+            <span class="font-label-md text-label-md">Dashboard</span>
+        </a>
+        {% endif %}
+        {% if puede('entrada_canal.ver') %}
+        <a class="flex items-center gap-md px-md py-sm rounded-lg font-bold transition-colors duration-200 {{ 'bg-primary-container text-on-primary-container' if activo == 'entrada' else 'text-secondary hover:bg-surface-variant' }}"
+           href="{{ url_for('inventario.entrada_canal') }}">
+            <span class="material-symbols-outlined">conveyor_belt</span>
+            <span class="font-label-md text-label-md">Entrada Canal</span>
+        </a>
+        <a class="flex items-center gap-md px-md py-sm rounded-lg font-bold transition-colors duration-200 {{ 'bg-primary-container text-on-primary-container' if activo == 'historial' else 'text-secondary hover:bg-surface-variant' }}"
+           href="{{ url_for('inventario.historial') }}">
+            <span class="material-symbols-outlined">history</span>
+            <span class="font-label-md text-label-md">Historial Canal</span>
+        </a>
+        {% endif %}
+        {% if puede('desposte.ver') %}
+        <a class="flex items-center gap-md px-md py-sm rounded-lg font-bold transition-colors duration-200 {{ 'bg-primary-container text-on-primary-container' if activo == 'desposte' else 'text-secondary hover:bg-surface-variant' }}"
+           href="{{ url_for('inventario.desposte' if puede('desposte.crear') else 'inventario.desposte_historial') }}">
+            <span class="material-symbols-outlined">restaurant</span>
+            <span class="font-label-md text-label-md">Desposte</span>
+        </a>
+        {% endif %}
+        {% if puede('inventario.ver') %}
+        <a class="flex items-center gap-md px-md py-sm rounded-lg font-bold transition-colors duration-200 {{ 'bg-primary-container text-on-primary-container' if activo == 'inventario' else 'text-secondary hover:bg-surface-variant' }}"
+           href="{{ url_for('inventario.catalogo_productos') }}">
+            <span class="material-symbols-outlined">inventory_2</span>
+            <span class="font-label-md text-label-md">Inventario</span>
+        </a>
+        {% endif %}
+        {% if puede('pos.ver') %}
+        <a class="flex items-center gap-md px-md py-sm rounded-lg font-bold transition-colors duration-200 {{ 'bg-primary-container text-on-primary-container' if activo == 'pos' else 'text-secondary hover:bg-surface-variant' }}"
+           href="{{ url_for('ventas.pos' if puede('pos.crear') else 'ventas.historial') }}">
+            <span class="material-symbols-outlined">point_of_sale</span>
+            <span class="font-label-md text-label-md">Punto de Venta</span>
+        </a>
+        {% endif %}
+        {% if puede('clientes.ver') %}
+        <a class="flex items-center gap-md px-md py-sm rounded-lg font-bold transition-colors duration-200 {{ 'bg-primary-container text-on-primary-container' if activo == 'clientes' else 'text-secondary hover:bg-surface-variant' }}"
+           href="{{ url_for('ventas.clientes') }}">
+            <span class="material-symbols-outlined">group</span>
+            <span class="font-label-md text-label-md">Clientes</span>
+        </a>
+        {% endif %}
+        {% if puede('proveedores.ver') %}
+        <a class="flex items-center gap-md px-md py-sm rounded-lg font-bold transition-colors duration-200 {{ 'bg-primary-container text-on-primary-container' if activo == 'proveedores' else 'text-secondary hover:bg-surface-variant' }}"
+           href="{{ url_for('inventario.proveedores') }}">
+            <span class="material-symbols-outlined">local_shipping</span>
+            <span class="font-label-md text-label-md">Proveedores</span>
+        </a>
+        {% endif %}
+        {% if puede('finanzas.ver') %}
+        <a class="flex items-center gap-md px-md py-sm rounded-lg font-bold transition-colors duration-200 {{ 'bg-primary-container text-on-primary-container' if activo == 'finanzas' else 'text-secondary hover:bg-surface-variant' }}"
+           href="{{ url_for('finanzas.dashboard') }}">
+            <span class="material-symbols-outlined">payments</span>
+            <span class="font-label-md text-label-md">Finanzas</span>
+        </a>
+        {% endif %}
+    </nav>
+    <div class="mt-auto border-t border-outline-variant pt-md space-y-xs">
+        {% if usuario_actual %}
+        <div class="flex items-center gap-md px-md py-sm mb-xs">
+            <div class="w-10 h-10 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center font-bold shrink-0">
+                {{ usuario_actual.nombre_completo[:2]|upper }}
+            </div>
+            <div class="overflow-hidden">
+                <p class="font-label-md text-label-md font-bold truncate">{{ usuario_actual.nombre_completo }}</p>
+                <p class="text-xs text-secondary truncate">{{ usuario_actual.rol_nombre }}</p>
+            </div>
+        </div>
+        {% endif %}
+        {% if es_gerente %}
+        <a class="flex items-center gap-md px-md py-sm rounded-lg font-bold transition-colors duration-200 {{ 'bg-primary-container text-on-primary-container' if activo == 'auditoria' else 'text-secondary hover:bg-surface-variant' }}"
+           href="{{ url_for('auditoria.registro') }}">
+            <span class="material-symbols-outlined">fact_check</span>
+            <span class="font-label-md text-label-md">Auditoría</span>
+        </a>
+        <a class="flex items-center gap-md px-md py-sm rounded-lg font-bold transition-colors duration-200 {{ 'bg-primary-container text-on-primary-container' if activo == 'configuracion' else 'text-secondary hover:bg-surface-variant' }}"
+           href="{{ url_for('configuracion.usuarios') }}">
+            <span class="material-symbols-outlined">settings</span>
+            <span class="font-label-md text-label-md">Configuración</span>
+        </a>
+        {% endif %}
+        {% if usuario_actual %}
+        <a class="flex items-center gap-md px-md py-sm text-secondary hover:bg-surface-variant rounded-lg transition-colors duration-200" href="{{ url_for('auth.cambiar_password') }}">
+            <span class="material-symbols-outlined">key</span>
+            <span class="font-label-md text-label-md">Cambiar contraseña</span>
+        </a>
+        <form method="post" action="{{ url_for('auth.logout') }}">
+            <button type="submit" class="w-full flex items-center gap-md px-md py-sm text-secondary hover:bg-surface-variant rounded-lg transition-colors duration-200 text-left">
+                <span class="material-symbols-outlined">logout</span>
+                <span class="font-label-md text-label-md">Cerrar Sesión</span>
+            </button>
+        </form>
+        {% endif %}
+    </div>
+</aside>
+<main class="flex-grow flex flex-col min-w-0 bg-background pb-32 lg:pb-0">
+    <header class="flex justify-between items-center w-full px-gutter py-sm h-16 sticky top-0 z-40 bg-surface border-b border-outline-variant">
+        <div class="flex items-center gap-md">
+            <span class="lg:hidden material-symbols-outlined text-primary">menu</span>
+            <h2 class="font-headline-md text-headline-md font-bold text-primary">{% block encabezado %}{% endblock %}</h2>
+        </div>
+        <div class="flex items-center gap-sm no-imprimir">
+            <button type="button" title="Imprimir / Guardar como PDF" onclick="window.print()"
+                    class="flex items-center justify-center w-10 h-10 rounded-full text-secondary hover:bg-surface-container transition-colors">
+                <span class="material-symbols-outlined">print</span>
+            </button>
+            <button id="boton-tema" type="button" title="Cambiar a modo claro/oscuro"
+                    class="flex items-center justify-center w-10 h-10 rounded-full text-secondary hover:bg-surface-container transition-colors">
+                <span id="icono-tema-claro" class="material-symbols-outlined">dark_mode</span>
+                <span id="icono-tema-oscuro" class="material-symbols-outlined hidden">light_mode</span>
+            </button>
+        </div>
+    </header>
+
+    {% with mensajes = get_flashed_messages(with_categories=true) %}
+        {% if mensajes %}
+        <div class="px-gutter pt-md space-y-sm">
+            {% for categoria, mensaje in mensajes %}
+            <div class="p-md rounded-lg font-body-md text-body-md {{ 'bg-error-container text-on-error-container' if categoria == 'error' else 'bg-tertiary-container text-on-tertiary-container' }}">
+                {{ mensaje }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    {% endwith %}
+
+    <div class="p-gutter max-w-[1600px] mx-auto w-full">
+        <div class="solo-imprimir">
+            <h1 style="font-size:20px;font-weight:800;color:#8f000d;">Carnicería La Mija</h1>
+            <h2 style="font-size:16px;font-weight:700;">{% block encabezado_impreso %}{{ self.encabezado() }}{% endblock %}</h2>
+            <p style="font-size:12px;color:#555;">
+                Impreso el <span data-fecha-impresion></span>{% if usuario_actual %} por {{ usuario_actual.nombre_completo }}{% endif %}
+            </p>
+        </div>
+        {% block contenido %}{% endblock %}
+    </div>
+</main>
+<script>
+    (function () {
+        const html = document.documentElement;
+        const boton = document.getElementById("boton-tema");
+        const iconoClaro = document.getElementById("icono-tema-claro");
+        const iconoOscuro = document.getElementById("icono-tema-oscuro");
+
+        function sincronizarIcono() {
+            const esOscuro = html.classList.contains("dark");
+            iconoClaro.classList.toggle("hidden", esOscuro);
+            iconoOscuro.classList.toggle("hidden", !esOscuro);
+        }
+
+        boton.addEventListener("click", function () {
+            html.classList.toggle("dark");
+            const esOscuro = html.classList.contains("dark");
+            try {
+                localStorage.setItem("tema", esOscuro ? "oscuro" : "claro");
+            } catch (e) { /* localStorage no disponible */ }
+            sincronizarIcono();
+        });
+
+        sincronizarIcono();
+    })();
+
+    // Fecha/hora de impresión: se calcula en el navegador (hora local) justo antes de imprimir.
+    (function () {
+        const spans = document.querySelectorAll('[data-fecha-impresion]');
+        function actualizarFecha() {
+            const ahora = new Date().toLocaleString('es-GT', { dateStyle: 'long', timeStyle: 'short' });
+            spans.forEach(function (s) { s.textContent = ahora; });
+        }
+        window.addEventListener('beforeprint', actualizarFecha);
+        actualizarFecha();
+    })();
+</script>
+</body>
+</html>

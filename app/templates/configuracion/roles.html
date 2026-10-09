@@ -1,0 +1,152 @@
+{% extends "inventario/_layout.html" %}
+{% set activo = "configuracion" %}
+
+{% block titulo %}Roles - Carnicería La Mija{% endblock %}
+{% block encabezado %}Gestión de Usuarios y Roles{% endblock %}
+
+{% block contenido %}
+<div class="space-y-gutter pb-24">
+    <div class="flex flex-col md:flex-row justify-between md:items-end gap-md">
+        <div class="space-y-md">
+            {% include "configuracion/_tabs.html" %}
+            <div>
+                <h3 class="font-headline-md text-headline-md text-on-surface">Roles del Sistema</h3>
+                <p class="font-body-md text-secondary">Crea roles (por ejemplo Cajero) y define qué puede hacer cada uno.</p>
+            </div>
+        </div>
+        <button type="button" id="btn-nuevo-rol" class="flex items-center gap-sm px-xl py-md bg-primary text-on-primary rounded-lg font-bold shadow-md active:scale-95 transition-transform">
+            <span class="material-symbols-outlined">add_moderator</span>
+            Nuevo Rol
+        </button>
+    </div>
+
+    <div class="bg-surface-container-lowest rounded-xl border border-outline-variant overflow-hidden shadow-sm">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-surface-container-low border-b border-outline-variant">
+                        <th class="px-md py-md font-label-md text-secondary uppercase tracking-wider">Rol</th>
+                        <th class="px-md py-md font-label-md text-secondary uppercase tracking-wider">Descripción</th>
+                        <th class="px-md py-md font-label-md text-secondary uppercase tracking-wider text-center">Usuarios</th>
+                        <th class="px-md py-md font-label-md text-secondary uppercase tracking-wider text-center">Permisos</th>
+                        <th class="px-md py-md font-label-md text-secondary uppercase tracking-wider">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-outline-variant">
+                    {% for r in roles %}
+                    {% set es_gerente_rol = r.nombre == 'Gerente' and r.es_sistema %}
+                    <tr class="hover:bg-surface-container-low transition-colors">
+                        <td class="px-md py-md">
+                            <span class="px-3 py-1 rounded-full text-xs font-bold {{ 'bg-tertiary-container text-on-tertiary-container' if es_gerente_rol else 'bg-secondary-container text-on-secondary-container' }}">{{ r.nombre }}</span>
+                            {% if r.es_sistema %}<span class="ml-2 text-xs text-secondary" title="No se puede eliminar ni renombrar">Sistema</span>{% endif %}
+                        </td>
+                        <td class="px-md py-md font-body-md text-secondary">{{ r.descripcion or '—' }}</td>
+                        <td class="px-md py-md text-center font-bold">{{ r.total_usuarios }}</td>
+                        <td class="px-md py-md text-center font-bold">{{ 'Todos' if es_gerente_rol else r.total_permisos }}</td>
+                        <td class="px-md py-md">
+                            <div class="flex gap-sm items-center">
+                                <a href="{{ url_for('configuracion.usuarios', rol=r.id) }}" title="Configurar permisos"
+                                   class="p-2 hover:bg-primary-fixed hover:text-primary rounded-lg text-secondary transition-colors">
+                                    <span class="material-symbols-outlined">security</span>
+                                </a>
+                                <button type="button" title="Editar"
+                                        class="btn-editar-rol p-2 hover:bg-secondary-container rounded-lg text-secondary transition-colors"
+                                        data-id="{{ r.id }}" data-nombre="{{ r.nombre }}" data-descripcion="{{ r.descripcion or '' }}" data-sistema="{{ 1 if r.es_sistema else 0 }}">
+                                    <span class="material-symbols-outlined">edit</span>
+                                </button>
+                                {% if not r.es_sistema %}
+                                <form method="post" action="{{ url_for('configuracion.eliminar_rol', rol_id=r.id) }}" class="form-eliminar-rol"
+                                      data-nombre="{{ r.nombre }}" data-usuarios="{{ r.total_usuarios }}">
+                                    <button type="submit" title="{{ 'Reasigna sus usuarios para poder eliminarlo' if r.total_usuarios else 'Eliminar' }}"
+                                            class="p-2 rounded-lg transition-colors {{ 'text-outline opacity-50 cursor-not-allowed' if r.total_usuarios else 'hover:bg-error-container text-error' }}">
+                                        <span class="material-symbols-outlined">delete</span>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: crear / editar rol (un solo modal reutilizado) -->
+<div id="modal-rol" class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/50 backdrop-blur-sm p-gutter">
+    <div class="bg-surface-container-lowest w-full max-w-md rounded-2xl shadow-xl overflow-hidden border border-outline-variant flex flex-col">
+        <div class="p-lg border-b border-outline-variant flex justify-between items-center bg-surface">
+            <h2 id="modal-rol-titulo" class="font-headline-md text-on-surface">Nuevo Rol</h2>
+            <button type="button" class="cerrar-modal text-secondary hover:text-on-surface"><span class="material-symbols-outlined">close</span></button>
+        </div>
+        <form id="form-rol" method="post" action="{{ url_for('configuracion.crear_rol') }}" class="p-lg space-y-md">
+            <div class="space-y-xs">
+                <label class="font-label-md text-on-surface font-semibold" for="rol-nombre">Nombre del rol</label>
+                <input id="rol-nombre" name="nombre" required minlength="2" maxlength="50" placeholder="Ej. Cajero"
+                       class="w-full h-12 px-md border border-outline-variant rounded-lg bg-surface focus:ring-2 focus:ring-primary focus:border-primary read-only:opacity-60">
+                <p id="rol-aviso-sistema" class="hidden text-xs text-secondary">Los roles del sistema no se pueden renombrar.</p>
+            </div>
+            <div class="space-y-xs">
+                <label class="font-label-md text-on-surface font-semibold" for="rol-descripcion">Descripción (opcional)</label>
+                <input id="rol-descripcion" name="descripcion" maxlength="255" placeholder="¿Qué hace este rol?"
+                       class="w-full h-12 px-md border border-outline-variant rounded-lg bg-surface focus:ring-2 focus:ring-primary focus:border-primary">
+            </div>
+            <p id="rol-aviso-nuevo" class="text-xs text-secondary">El rol se crea sin permisos: podrás asignárselos en la matriz al guardar.</p>
+            <div class="flex justify-end gap-md pt-sm border-t border-outline-variant">
+                <button type="button" class="cerrar-modal px-lg py-sm border-2 border-outline-variant text-secondary font-bold rounded-xl hover:bg-surface-variant transition-colors">Cancelar</button>
+                <button type="submit" class="px-lg py-sm bg-primary-container text-on-primary font-bold rounded-xl hover:opacity-90 transition-all active:scale-95">Guardar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+(function () {
+    const modal = document.getElementById('modal-rol');
+    const form = document.getElementById('form-rol');
+    const nombre = document.getElementById('rol-nombre');
+    const descripcion = document.getElementById('rol-descripcion');
+    const abrir = () => { modal.classList.remove('hidden'); modal.classList.add('flex'); nombre.focus(); };
+    const cerrar = () => { modal.classList.add('hidden'); modal.classList.remove('flex'); };
+    const urlCrear = "{{ url_for('configuracion.crear_rol') }}";
+    const plantillaEditar = "{{ url_for('configuracion.editar_rol', rol_id=0) }}";
+
+    document.querySelectorAll('.cerrar-modal').forEach(b => b.addEventListener('click', cerrar));
+
+    document.getElementById('btn-nuevo-rol').addEventListener('click', function () {
+        form.action = urlCrear;
+        document.getElementById('modal-rol-titulo').textContent = 'Nuevo Rol';
+        nombre.value = ''; descripcion.value = ''; nombre.readOnly = false;
+        document.getElementById('rol-aviso-sistema').classList.add('hidden');
+        document.getElementById('rol-aviso-nuevo').classList.remove('hidden');
+        abrir();
+    });
+
+    document.querySelectorAll('.btn-editar-rol').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            form.action = plantillaEditar.replace(/\/0\/editar$/, '/' + btn.dataset.id + '/editar');
+            document.getElementById('modal-rol-titulo').textContent = 'Editar Rol';
+            nombre.value = btn.dataset.nombre;
+            descripcion.value = btn.dataset.descripcion;
+            const sistema = btn.dataset.sistema === '1';
+            nombre.readOnly = sistema;
+            document.getElementById('rol-aviso-sistema').classList.toggle('hidden', !sistema);
+            document.getElementById('rol-aviso-nuevo').classList.add('hidden');
+            abrir();
+        });
+    });
+
+    document.querySelectorAll('.form-eliminar-rol').forEach(function (frm) {
+        frm.addEventListener('submit', function (ev) {
+            if (parseInt(frm.dataset.usuarios, 10) > 0) {
+                alert('«' + frm.dataset.nombre + '» tiene usuarios asignados. Reasígnalos a otro rol antes de eliminarlo.');
+                ev.preventDefault();
+                return;
+            }
+            if (!confirm('¿Eliminar el rol «' + frm.dataset.nombre + '»?')) ev.preventDefault();
+        });
+    });
+})();
+</script>
+{% endblock %}

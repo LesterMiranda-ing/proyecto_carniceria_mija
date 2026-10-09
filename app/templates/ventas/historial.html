@@ -1,0 +1,100 @@
+{% extends "inventario/_layout.html" %}
+{% set activo = "pos" %}
+
+{% block titulo %}Historial de Ventas - Carnicería La Mija{% endblock %}
+{% block encabezado %}Historial de Ventas{% endblock %}
+
+{% block contenido %}
+<form method="get" action="{{ url_for('ventas.historial') }}"
+      class="no-imprimir flex flex-col sm:flex-row justify-between items-start sm:items-center gap-md mb-xl bg-surface-container-low p-md rounded-xl border border-outline-variant">
+    <div class="flex items-center bg-surface border border-outline-variant rounded-lg px-3 py-2 focus-within:ring-2 focus-within:ring-primary">
+        <span class="material-symbols-outlined text-secondary mr-2 text-sm">search</span>
+        <input class="border-none bg-transparent p-0 text-sm focus:ring-0 text-on-surface w-56" type="text" name="q" placeholder="No. de venta o cliente..." value="{{ busqueda }}">
+    </div>
+    <div class="flex items-center gap-sm">
+        <button type="submit" class="px-4 py-2 bg-surface border border-outline-variant rounded-lg hover:bg-surface-container font-label-md text-sm">Filtrar</button>
+        <a class="flex items-center gap-2 px-4 py-2 bg-surface border border-outline-variant rounded-lg hover:bg-surface-container font-label-md text-sm"
+           href="{{ url_for('ventas.exportar_historial_excel', q=busqueda) }}">
+            <span class="material-symbols-outlined text-sm">download</span>
+            Excel
+        </a>
+        {% if puede('pos.crear') %}
+        <a class="flex items-center gap-2 px-6 py-2 bg-primary text-on-primary rounded-lg hover:bg-surface-tint font-label-md transition-colors h-12"
+           href="{{ url_for('ventas.pos') }}">
+            <span class="material-symbols-outlined">point_of_sale</span>
+            Ir al POS
+        </a>
+        {% endif %}
+    </div>
+</form>
+
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden shadow-sm">
+    <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+            <thead class="bg-surface-container-low border-b border-outline-variant">
+                <tr>
+                    <th class="px-md py-4 font-label-md text-secondary font-semibold whitespace-nowrap">Fecha</th>
+                    <th class="px-md py-4 font-label-md text-secondary font-semibold">No. Venta</th>
+                    <th class="px-md py-4 font-label-md text-secondary font-semibold">Cliente</th>
+                    <th class="px-md py-4 font-label-md text-secondary font-semibold text-center">Precio Aplicado</th>
+                    <th class="px-md py-4 font-label-md text-secondary font-semibold text-right">Total</th>
+                    <th class="px-md py-4 font-label-md text-secondary font-semibold text-center">Estado</th>
+                    <th class="px-md py-4 font-label-md text-secondary font-semibold">Vendedor</th>
+                    <th class="px-md py-4 font-label-md text-secondary font-semibold text-right no-imprimir">Detalle</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-outline-variant font-body-md">
+                {% for v in registros %}
+                <tr class="hover:bg-surface-container transition-colors h-16">
+                    <td class="px-md py-3 whitespace-nowrap">{{ v.creado_en.strftime('%d %b, %Y - %I:%M %p') }}</td>
+                    <td class="px-md py-3 text-primary font-semibold">{{ v.numero_venta }}</td>
+                    <td class="px-md py-3 font-medium">{{ v.cliente_nombre }}</td>
+                    <td class="px-md py-3 text-center">
+                        <span class="px-sm py-1 rounded text-xs font-bold {{ 'bg-secondary-container text-on-secondary-container' if v.tipo_precio_aplicado == 'mayoreo' else 'bg-surface-variant text-on-surface-variant' }}">
+                            {{ v.tipo_precio_aplicado|capitalize }}
+                        </span>
+                    </td>
+                    <td class="px-md py-3 text-right font-data-display text-[16px] font-semibold">Q{{ '%.2f'|format(v.total) }}</td>
+                    <td class="px-md py-3 text-center">
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-tertiary-container text-on-tertiary-container">
+                            {{ v.estado }}
+                        </span>
+                    </td>
+                    <td class="px-md py-3 text-secondary">{{ v.vendedor or "Caja Principal" }}</td>
+                    <td class="px-md py-3 text-right no-imprimir">
+                        <a href="{{ url_for('ventas.venta_detalle', venta_id=v.id) }}" class="p-1.5 text-secondary hover:text-primary rounded inline-flex" title="Ver detalle">
+                            <span class="material-symbols-outlined text-sm">visibility</span>
+                        </a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td class="px-md py-6 text-secondary text-center" colspan="8">Aún no hay ventas registradas.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="no-imprimir bg-surface-container p-4 border-t border-outline-variant flex items-center justify-between">
+        <span class="text-sm text-secondary font-label-md">
+            {% if total_registros > 0 %}
+            Mostrando {{ (pagina - 1) * por_pagina + 1 }} - {{ [(pagina * por_pagina), total_registros]|min }} de {{ total_registros }} registros
+            {% else %}
+            Sin registros
+            {% endif %}
+        </span>
+        <div class="flex items-center gap-2">
+            <a class="p-2 border border-outline-variant rounded bg-surface hover:bg-surface-variant text-secondary {{ 'opacity-50 pointer-events-none' if pagina <= 1 else '' }}"
+               href="{{ url_for('ventas.historial', pagina=pagina-1, q=busqueda) }}">
+                <span class="material-symbols-outlined text-sm">chevron_left</span>
+            </a>
+            <span class="px-3 py-1 bg-primary text-on-primary rounded font-label-md">{{ pagina }} / {{ total_paginas }}</span>
+            <a class="p-2 border border-outline-variant rounded bg-surface hover:bg-surface-variant text-secondary {{ 'opacity-50 pointer-events-none' if pagina >= total_paginas else '' }}"
+               href="{{ url_for('ventas.historial', pagina=pagina+1, q=busqueda) }}">
+                <span class="material-symbols-outlined text-sm">chevron_right</span>
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

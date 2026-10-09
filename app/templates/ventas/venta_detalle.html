@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Recibo {{ venta.numero_venta }} - Carnicería La Mija</title>
+<script>
+    // Aplica el tema guardado ANTES de pintar la página, para evitar parpadeo
+    // y para respetar el modo oscuro/claro elegido en el resto del sistema.
+    (function () {
+        try {
+            const guardado = localStorage.getItem("tema");
+            const prefiereOscuro = window.matchMedia("(prefers-color-scheme: dark)").matches;
+            if (guardado === "oscuro" || (!guardado && prefiereOscuro)) {
+                document.documentElement.classList.add("dark");
+            }
+        } catch (e) { /* localStorage no disponible: se ignora, queda modo claro */ }
+    })();
+</script>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+<script id="tailwind-config">
+    tailwind.config = {
+        darkMode: "class",
+        theme: {
+            extend: {
+                colors: {
+                    "primary": "#8f000d",
+                    "primary-container": "#b22222",
+                    "on-primary": "#ffffff",
+                    "on-primary-container": "#ffc8c2",
+                    "secondary": "#555f6d",
+                    "tertiary": "#004f35",
+                    "outline": "#8e706d",
+                    "outline-variant": "#e2beba",
+                    "surface": "#f8f9fa",
+                    "surface-variant": "#e1e3e4",
+                    "surface-container-low": "#f3f4f5",
+                    "surface-container-lowest": "#ffffff",
+                    "on-surface": "#191c1d",
+                    "on-background": "#191c1d",
+                    "background": "#f8f9fa"
+                },
+                borderRadius: { DEFAULT: "0.25rem", lg: "0.5rem", xl: "0.75rem", full: "9999px" },
+                spacing: { xs: "4px", sm: "8px", base: "8px", md: "16px", lg: "24px", xl: "32px", gutter: "24px", margin: "24px" },
+                fontFamily: { "label-md": ["Inter"], "label-xl": ["Inter"], "headline-md": ["Inter"], "headline-lg": ["Inter"], "body-md": ["Inter"], "data-display": ["Inter"] },
+                fontSize: {
+                    "label-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0.05em", "fontWeight": "500"}],
+                    "label-xl": ["20px", {"lineHeight": "24px", "letterSpacing": "0.01em", "fontWeight": "600"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                    "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "data-display": ["40px", {"lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "800"}]
+                }
+            }
+        }
+    }
+</script>
+<style>
+    body { transition: background-color .2s ease, color .2s ease; }
+    .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+
+    /* --- Modo oscuro (mismo enfoque que app/templates/inventario/_layout.html) --- */
+    .dark body { background-color: #14100f; color: #f0e9e8; }
+    .dark .bg-surface,
+    .dark .bg-surface-container-lowest,
+    .dark .bg-surface-container-low { background-color: #1d1918 !important; }
+    .dark .bg-surface-variant { background-color: #332c2b !important; }
+    .dark .border-outline-variant,
+    .dark .divide-surface-variant > :not([hidden]) ~ :not([hidden]),
+    .dark .border-secondary { border-color: #433a38 !important; }
+    .dark .text-on-surface,
+    .dark .text-on-background { color: #f0e9e8 !important; }
+    .dark .text-secondary { color: #c9bdbb !important; }
+    .dark .text-primary { color: #ffb4ac !important; }
+    .dark .hover\:bg-surface-variant:hover { background-color: #3a3231 !important; }
+    .dark .hover\:text-primary:hover { color: #ffb4ac !important; }
+
+    /* El recibo SIEMPRE se imprime en claro, sin importar el tema en pantalla. */
+    @media print {
+        body * { visibility: hidden; }
+        #printable-receipt, #printable-receipt * { visibility: visible; }
+        #printable-receipt {
+            position: absolute; left: 0; top: 0; width: 100%;
+            margin: 0; padding: 0; box-shadow: none; border: none;
+            background-color: #ffffff !important;
+            color: #191c1d !important;
+        }
+        #printable-receipt .bg-surface,
+        #printable-receipt .bg-surface-container-lowest,
+        #printable-receipt .bg-surface-container-low { background-color: #ffffff !important; }
+        #printable-receipt .bg-surface-variant { background-color: #e1e3e4 !important; }
+        #printable-receipt .border-outline-variant,
+        #printable-receipt .divide-surface-variant > :not([hidden]) ~ :not([hidden]) { border-color: #e2beba !important; }
+        #printable-receipt .text-secondary { color: #555f6d !important; }
+        #printable-receipt .text-on-surface { color: #191c1d !important; }
+        #printable-receipt .text-primary { color: #8f000d !important; }
+        .no-print { display: none !important; }
+    }
+</style>
+</head>
+<body class="bg-surface-container-low min-h-screen font-body-md text-on-surface antialiased">
+
+<header class="flex justify-between items-center w-full px-gutter py-sm h-16 sticky top-0 z-40 bg-surface border-b border-outline-variant shadow-sm no-print">
+    <span class="font-label-xl text-label-xl font-black text-primary">Carnicería La Mija</span>
+    <div class="flex items-center gap-md">
+        <button id="boton-tema" type="button" title="Cambiar a modo claro/oscuro"
+                class="flex items-center justify-center w-10 h-10 rounded-full text-secondary hover:bg-surface-variant transition-colors">
+            <span id="icono-tema-claro" class="material-symbols-outlined">dark_mode</span>
+            <span id="icono-tema-oscuro" class="material-symbols-outlined hidden">light_mode</span>
+        </button>
+        <a href="{{ url_for('ventas.historial') }}" class="flex items-center gap-xs text-secondary hover:text-primary transition-colors">
+            <span class="material-symbols-outlined">history</span>
+            <span class="font-label-md hidden sm:inline">Historial</span>
+        </a>
+    </div>
+</header>
+
+<main class="container mx-auto px-4 py-8 max-w-2xl">
+    <div class="flex justify-between items-center mb-6 no-print md:hidden">
+        <a href="{{ url_for('ventas.pos' if puede('pos.crear') else 'ventas.historial') }}" class="flex items-center gap-2 text-secondary hover:text-primary transition-colors">
+            <span class="material-symbols-outlined">arrow_back</span>
+            <span class="font-label-md">Volver</span>
+        </a>
+    </div>
+
+    <!-- Recibo -->
+    <div id="printable-receipt" class="bg-surface-container-lowest rounded-xl shadow-lg border border-outline-variant overflow-hidden">
+
+        <!-- Encabezado -->
+        <div class="p-8 border-b border-outline-variant text-center">
+            <span class="material-symbols-outlined text-primary text-5xl mb-2 inline-block" style="font-variation-settings: 'FILL' 1;">nutrition</span>
+            <h1 class="font-headline-md text-headline-md font-bold text-on-surface">Carnicería La Mija</h1>
+            <!-- Datos del negocio: ajusta estos 3 renglones con tu dirección/teléfono/NIT reales -->
+            <p class="font-body-md text-secondary mt-1">Mercado Municipal, Local 12</p>
+            <p class="font-body-md text-secondary">Tel: 0000-0000</p>
+            <p class="font-body-md text-secondary">NIT: 000000-0</p>
+        </div>
+
+        <!-- Meta -->
+        <div class="p-6 md:p-8 grid grid-cols-2 gap-4 border-b border-outline-variant bg-surface">
+            <div>
+                <p class="font-label-md text-secondary">Fecha y Hora</p>
+                <p class="font-body-md font-medium text-on-surface">{{ venta.creado_en.strftime('%d %b %Y, %H:%M') }}</p>
+            </div>
+            <div class="text-right">
+                <p class="font-label-md text-secondary">Recibo No.</p>
+                <p class="font-body-md font-medium text-on-surface">#{{ venta.numero_venta }}</p>
+            </div>
+            <div>
+                <p class="font-label-md text-secondary">Atendido por</p>
+                <p class="font-body-md font-medium text-on-surface">{{ venta.vendedor or 'Caja Principal' }}</p>
+            </div>
+            <div class="text-right">
+                <p class="font-label-md text-secondary">Método de Pago</p>
+                <p class="font-body-md font-medium text-on-surface">{{ venta.metodo_pago }}</p>
+            </div>
+        </div>
+
+        <!-- Cliente -->
+        <div class="p-6 md:p-8 border-b border-outline-variant">
+            <h2 class="font-label-md text-secondary mb-2 uppercase tracking-wide">Datos del Cliente</h2>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <p class="font-body-md font-medium text-on-surface">{{ venta.cliente_nombre }}</p>
+                    <p class="text-xs text-secondary uppercase">{{ venta.tipo_precio_aplicado }}</p>
+                </div>
+                <div class="text-right">
+                    <p class="font-body-md text-secondary">NIT: {{ venta.cliente_nit or 'C/F' }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Productos -->
+        <div class="p-6 md:p-8">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="border-b-2 border-outline-variant text-secondary font-label-md">
+                        <th class="py-3 font-semibold w-1/2">Producto</th>
+                        <th class="py-3 font-semibold text-center">Cantidad</th>
+                        <th class="py-3 font-semibold text-right">Precio Unit.</th>
+                        <th class="py-3 font-semibold text-right">Subtotal</th>
+                    </tr>
+                </thead>
+                <tbody class="font-body-md divide-y divide-surface-variant">
+                    {% for item in detalle %}
+                    <tr>
+                        <td class="py-4 font-medium text-on-surface">{{ item.nombre_producto }}</td>
+                        <td class="py-4 text-center text-secondary">
+                            {{ '%.3f'|format(item.cantidad) if item.unidad_venta == 'lb' else item.cantidad|int }} {{ item.unidad_venta }}
+                        </td>
+                        <td class="py-4 text-right text-secondary">Q {{ '%.2f'|format(item.precio_unitario) }}</td>
+                        <td class="py-4 text-right font-medium text-on-surface">Q {{ '%.2f'|format(item.subtotal_linea) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Totales -->
+        <div class="p-6 md:p-8 bg-surface border-t border-outline-variant">
+            <div class="flex justify-between items-center mb-2">
+                <span class="font-body-md text-secondary">Subtotal</span>
+                <span class="font-body-md text-on-surface">Q {{ '%.2f'|format(venta.subtotal) }}</span>
+            </div>
+            <div class="flex justify-between items-center mb-4">
+                <span class="font-body-md text-secondary">Impuestos (0%)</span>
+                <span class="font-body-md text-on-surface">Q 0.00</span>
+            </div>
+            <div class="flex justify-between items-center py-4 border-t-2 border-outline-variant">
+                <span class="font-headline-md text-headline-md font-bold text-on-surface">TOTAL</span>
+                <span class="font-data-display text-data-display font-extrabold text-primary">Q {{ '%.2f'|format(venta.total) }}</span>
+            </div>
+        </div>
+
+        <!-- Pie -->
+        <div class="p-6 bg-surface-container-lowest text-center border-t border-outline-variant">
+            <p class="font-label-md text-label-md font-medium text-secondary">¡Gracias por su compra!</p>
+            <p class="font-body-md text-secondary text-sm mt-1">Carnes y Cortes de Alta Calidad</p>
+            <div class="mt-4 flex justify-center">
+                <div class="h-12 w-48 bg-surface-variant flex items-center justify-center border border-outline-variant rounded">
+                    <span class="text-xs text-secondary tracking-[0.2em] font-mono">||| |||| | ||| || |||</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Acciones -->
+    <div class="mt-8 flex flex-col sm:flex-row gap-4 justify-center no-print">
+        <button onclick="window.print()"
+                class="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-primary text-on-primary font-label-md text-label-md h-12 px-8 rounded-lg shadow-sm hover:bg-primary-container hover:text-on-primary-container transition-colors">
+            <span class="material-symbols-outlined">print</span>
+            Imprimir Recibo
+        </button>
+        {% if puede('pos.crear') %}
+        <a href="{{ url_for('ventas.pos') }}"
+           class="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-surface text-secondary font-label-md text-label-md h-12 px-8 rounded-lg border-2 border-secondary hover:bg-surface-variant transition-colors">
+            <span class="material-symbols-outlined">point_of_sale</span>
+            Nueva Venta
+        </a>
+        {% endif %}
+    </div>
+</main>
+<script>
+    (function () {
+        const html = document.documentElement;
+        const boton = document.getElementById("boton-tema");
+        const iconoClaro = document.getElementById("icono-tema-claro");
+        const iconoOscuro = document.getElementById("icono-tema-oscuro");
+
+        function sincronizarIcono() {
+            const esOscuro = html.classList.contains("dark");
+            iconoClaro.classList.toggle("hidden", esOscuro);
+            iconoOscuro.classList.toggle("hidden", !esOscuro);
+        }
+
+        boton.addEventListener("click", function () {
+            html.classList.toggle("dark");
+            const esOscuro = html.classList.contains("dark");
+            try {
+                localStorage.setItem("tema", esOscuro ? "oscuro" : "claro");
+            } catch (e) { /* localStorage no disponible */ }
+            sincronizarIcono();
+        });
+
+        sincronizarIcono();
+    })();
+</script>
+</body>
+</html>

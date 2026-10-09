@@ -1,0 +1,152 @@
+{% extends "inventario/_layout.html" %}
+{% set activo = "desposte" %}
+
+{% block titulo %}Detalle de Desposte {{ d.numero_lote }} - Carnicería La Mija{% endblock %}
+{% block encabezado %}Detalle de Desposte — {{ d.numero_lote }}{% endblock %}
+
+{% block contenido %}
+<div class="mb-md">
+    <a href="{{ url_for('inventario.desposte_historial') }}" class="inline-flex items-center gap-xs text-secondary hover:text-primary font-label-md text-sm">
+        <span class="material-symbols-outlined text-sm">arrow_back</span>
+        Volver al historial
+    </a>
+</div>
+
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-lg">
+    <!-- Info general -->
+    <div class="xl:col-span-2 flex flex-col gap-lg">
+        <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-lg grid grid-cols-2 md:grid-cols-4 gap-md">
+            <div>
+                <p class="text-label-md text-secondary">Lote</p>
+                <p class="font-headline-md text-primary">{{ d.numero_lote }}</p>
+            </div>
+            <div>
+                <p class="text-label-md text-secondary">Proveedor</p>
+                <p class="font-headline-md">{{ d.proveedor }}</p>
+            </div>
+            <div>
+                <p class="text-label-md text-secondary">Fecha de Ingreso</p>
+                <p class="font-headline-md">{{ d.fecha_entrada.strftime('%d/%m/%Y') }}</p>
+            </div>
+            <div>
+                <p class="text-label-md text-secondary">Fecha de Desposte</p>
+                <p class="font-headline-md">{{ d.fecha_desposte.strftime('%d/%m/%Y %H:%M') }}</p>
+            </div>
+            <div>
+                <p class="text-label-md text-secondary">Registrado por</p>
+                <p class="font-headline-md">{{ d.registrado_por or "—" }}</p>
+            </div>
+        </div>
+
+        <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden shadow-sm">
+            <div class="p-md bg-surface-container-low border-b border-outline-variant">
+                <h4 class="font-label-xl text-label-xl">Desglose de Cortes</h4>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-surface-container-lowest border-b border-outline-variant">
+                            <th class="p-md font-label-md text-secondary">Corte</th>
+                            <th class="p-md font-label-md text-secondary">Categoría</th>
+                            <th class="p-md font-label-md text-secondary text-right">Peso</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-outline-variant">
+                        {% for item in detalle %}
+                        <tr class="hover:bg-surface-container transition-colors">
+                            <td class="p-md font-bold {{ 'text-error' if item.categoria == 'merma' else 'text-primary' }}">{{ item.tipo_corte }}</td>
+                            <td class="p-md">
+                                <span class="px-sm py-xs rounded text-xs font-bold
+                                    {{ 'bg-error text-on-error' if item.categoria == 'merma'
+                                       else ('bg-surface-variant text-on-surface-variant' if item.categoria == 'subproducto'
+                                       else 'bg-secondary-container text-on-secondary-container') }}">
+                                    {{ item.categoria|capitalize }}
+                                </span>
+                            </td>
+                            <td class="p-md text-right font-data-display text-[16px]">{{ '%.2f'|format(item.peso_lbs) }} lbs</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        {% if tara %}
+        <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden shadow-sm">
+            <div class="p-md bg-surface-container-low border-b border-outline-variant">
+                <h4 class="font-label-xl text-label-xl">Tara Descontada</h4>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-surface-container-lowest border-b border-outline-variant">
+                            <th class="p-md font-label-md text-secondary">Ítem</th>
+                            <th class="p-md font-label-md text-secondary text-center">Cantidad</th>
+                            <th class="p-md font-label-md text-secondary text-right">Peso Unit.</th>
+                            <th class="p-md font-label-md text-secondary text-right">Subtotal</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-outline-variant">
+                        {% for t in tara %}
+                        <tr class="hover:bg-surface-container transition-colors">
+                            <td class="p-md font-bold">{{ t.item }}</td>
+                            <td class="p-md text-center">{{ t.cantidad }}</td>
+                            <td class="p-md text-right font-data-display text-[16px]">{{ '%.2f'|format(t.peso_unitario_lbs) }} lbs</td>
+                            <td class="p-md text-right font-data-display text-[16px]">{{ '%.2f'|format(t.subtotal_lbs) }} lbs</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Resumen -->
+    <div class="flex flex-col gap-lg">
+        <div class="bg-primary text-on-primary rounded-xl p-lg shadow-lg flex flex-col items-center justify-center text-center">
+            <p class="text-label-md uppercase tracking-widest font-bold text-on-primary-container">Merma Total</p>
+            <span class="font-data-display text-headline-lg">{{ '%.2f'|format(d.merma_pct) }}%</span>
+            <p class="text-label-md opacity-80">{{ '%.2f'|format(d.merma_lbs) }} lbs</p>
+        </div>
+
+        <div class="bg-surface-container-high rounded-2xl p-lg flex flex-col gap-md border border-outline-variant shadow-sm">
+            <h3 class="font-headline-md text-headline-md border-b border-outline-variant pb-sm">Resumen de Pesaje</h3>
+            <div class="flex justify-between items-center">
+                <span class="text-body-md text-secondary">Peso Inicial Canal</span>
+                <span class="font-label-xl">{{ '%.2f'|format(d.peso_inicial_lbs) }} lbs</span>
+            </div>
+            <div class="flex justify-between items-center">
+                <span class="text-body-md text-secondary">Cortes Aprovechables</span>
+                <span class="font-label-xl">{{ '%.2f'|format(d.peso_cortes_lbs) }} lbs</span>
+            </div>
+            <div class="flex justify-between items-center">
+                <span class="text-body-md text-secondary">Merma Declarada</span>
+                <span class="font-label-xl">{{ '%.2f'|format(d.peso_merma_declarada_lbs) }} lbs</span>
+            </div>
+            <div class="flex justify-between items-center">
+                <span class="text-body-md text-secondary">Tara Descontada</span>
+                <span class="font-label-xl">{{ '%.2f'|format(d.peso_tara_lbs) }} lbs</span>
+            </div>
+            <div class="mt-md">
+                <div class="flex justify-between mb-xs">
+                    <span class="text-xs font-bold text-secondary">RENDIMIENTO (mínimo {{ rendimiento_minimo }}%)</span>
+                    <span class="text-xs font-bold">{{ '%.1f'|format(d.rendimiento_pct) }}%</span>
+                </div>
+                <div class="w-full bg-surface-variant rounded-full h-3">
+                    <div class="h-3 rounded-full {{ 'bg-tertiary-container' if d.rendimiento_pct >= rendimiento_minimo else 'bg-error' }}"
+                         style="width: {{ [d.rendimiento_pct, 100]|min }}%;"></div>
+                </div>
+                <p class="text-xs mt-sm flex items-center gap-xs {{ 'text-tertiary' if d.rendimiento_pct >= rendimiento_minimo else 'text-error' }}">
+                    <span class="material-symbols-outlined text-sm">{{ 'check_circle' if d.rendimiento_pct >= rendimiento_minimo else 'warning' }}</span>
+                    {% if d.rendimiento_pct >= rendimiento_minimo %}
+                    Dentro de los parámetros normales de merma técnica.
+                    {% else %}
+                    Rendimiento por debajo del mínimo esperado.
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,12 @@
+<div class="inline-flex items-center gap-sm bg-surface-container-high p-xs rounded-lg border border-outline-variant">
+    <a href="{{ url_for('configuracion.usuarios') }}"
+       class="flex items-center gap-xs px-md py-sm rounded-md text-label-md font-bold {{ 'bg-surface-container-lowest shadow-sm text-primary' if request.endpoint == 'configuracion.usuarios' else 'text-secondary hover:bg-surface-container-lowest transition-all' }}">
+        <span class="material-symbols-outlined text-[20px]">group</span>
+        Usuarios y permisos
+    </a>
+    <a href="{{ url_for('configuracion.roles') }}"
+       class="flex items-center gap-xs px-md py-sm rounded-md text-label-md font-bold {{ 'bg-surface-container-lowest shadow-sm text-primary' if request.endpoint == 'configuracion.roles' else 'text-secondary hover:bg-surface-container-lowest transition-all' }}">
+        <span class="material-symbols-outlined text-[20px]">badge</span>
+        Roles
+    </a>
+</div>

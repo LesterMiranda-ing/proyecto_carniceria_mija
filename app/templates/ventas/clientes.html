@@ -1,0 +1,299 @@
+{% extends "inventario/_layout.html" %}
+{% set activo = "clientes" %}
+
+{% block titulo %}Gestión de Clientes - Carnicería La Mija{% endblock %}
+{% block encabezado %}Gestión de Clientes{% endblock %}
+
+{% block contenido %}
+<div class="max-w-7xl mx-auto space-y-lg">
+
+    <!-- Encabezado + acción -->
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-md">
+        <div>
+            <h2 class="font-headline-lg text-headline-lg text-on-surface">Base de Datos</h2>
+            <p class="text-body-md text-secondary">Administra los perfiles de tus clientes individuales y mayoristas.</p>
+        </div>
+        <div class="no-imprimir flex items-center gap-sm">
+            <a href="{{ url_for('ventas.exportar_clientes_excel', tipo=tipo_activo, q=busqueda) }}"
+               class="flex items-center gap-2 px-4 py-2 bg-surface border border-outline-variant rounded-lg hover:bg-surface-container font-label-md text-sm">
+                <span class="material-symbols-outlined text-sm">download</span>
+                Excel
+            </a>
+            {% if puede('clientes.crear') %}
+            <a href="#formulario-registro" class="flex items-center justify-center gap-sm bg-primary text-on-primary px-xl py-md rounded-xl font-bold hover:opacity-90 transition-all shadow-md min-h-[56px]">
+                <span class="material-symbols-outlined">person_add</span>
+                <span class="text-label-xl">Nuevo Cliente</span>
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Tabs tipo bento (filtran la tabla) -->
+    <div class="no-imprimir grid grid-cols-1 md:grid-cols-2 gap-md">
+        <a href="{{ url_for('ventas.clientes', tipo='detalle', q=busqueda) }}"
+           class="group relative overflow-hidden p-lg rounded-xl border-2 transition-all text-left
+               {{ 'bg-primary-container text-on-primary-container border-primary' if tipo_activo == 'detalle' else 'bg-surface-container-lowest text-on-surface border-outline-variant hover:border-primary' }}">
+            <div class="flex items-center justify-between mb-md">
+                <span class="material-symbols-outlined text-[40px]" style="font-variation-settings: 'FILL' 1;">person</span>
+                {% if tipo_activo == 'detalle' %}
+                <span class="bg-primary text-on-primary text-xs px-sm py-xs rounded-full font-bold">ACTIVO</span>
+                {% endif %}
+            </div>
+            <h3 class="font-headline-md text-headline-md mb-xs">Clientes Individuales</h3>
+            <p class="text-label-md {{ 'opacity-80' if tipo_activo == 'detalle' else 'text-secondary' }}">Compras directas al mostrador y pedidos personales.</p>
+        </a>
+        <a href="{{ url_for('ventas.clientes', tipo='mayoreo', q=busqueda) }}"
+           class="group relative overflow-hidden p-lg rounded-xl border-2 transition-all text-left
+               {{ 'bg-primary-container text-on-primary-container border-primary' if tipo_activo == 'mayoreo' else 'bg-surface-container-lowest text-on-surface border-outline-variant hover:border-primary' }}">
+            <div class="flex items-center justify-between mb-md">
+                <span class="material-symbols-outlined text-[40px] {{ '' if tipo_activo == 'mayoreo' else 'text-secondary group-hover:text-primary transition-colors' }}">corporate_fare</span>
+                {% if tipo_activo == 'mayoreo' %}
+                <span class="bg-primary text-on-primary text-xs px-sm py-xs rounded-full font-bold">ACTIVO</span>
+                {% endif %}
+            </div>
+            <h3 class="font-headline-md text-headline-md mb-xs">Clientes Mayoristas</h3>
+            <p class="text-label-md {{ 'opacity-80' if tipo_activo == 'mayoreo' else 'text-secondary' }}">Restaurantes, comedores y canales de distribución.</p>
+        </a>
+    </div>
+    {% if tipo_activo %}
+    <a href="{{ url_for('ventas.clientes', q=busqueda) }}" class="no-imprimir inline-flex items-center gap-xs text-secondary hover:text-primary text-sm -mt-sm">
+        <span class="material-symbols-outlined text-sm">filter_alt_off</span>
+        Quitar filtro — ver todos
+    </a>
+    {% endif %}
+
+    <!-- Tabla -->
+    <section class="bg-surface-container-lowest rounded-xl border border-outline-variant overflow-hidden">
+        <div class="p-md border-b border-outline-variant flex flex-col sm:flex-row justify-between sm:items-center gap-sm bg-surface-container-low">
+            <span class="font-label-xl text-label-xl">Listado de Registros</span>
+            <form method="get" action="{{ url_for('ventas.clientes') }}" class="no-imprimir flex items-center gap-sm">
+                <input type="hidden" name="tipo" value="{{ tipo_activo }}">
+                <div class="flex items-center bg-surface border border-outline-variant rounded-lg px-3 py-1.5">
+                    <span class="material-symbols-outlined text-secondary text-sm mr-2">search</span>
+                    <input type="text" name="q" value="{{ busqueda }}" placeholder="Buscar por nombre o NIT..." class="border-none bg-transparent p-0 text-sm focus:ring-0 w-48">
+                </div>
+                <button type="submit" class="px-4 py-2 bg-surface border border-outline-variant rounded-lg hover:bg-surface-container font-label-md text-sm">Buscar</button>
+            </form>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-surface-container text-secondary uppercase text-[12px] tracking-widest font-bold">
+                        <th class="px-lg py-md">Cliente / Razón Social</th>
+                        <th class="px-lg py-md">NIT</th>
+                        <th class="px-lg py-md">Contacto</th>
+                        <th class="px-lg py-md">Última Compra</th>
+                        <th class="px-lg py-md text-center no-imprimir">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-outline-variant">
+                    {% for c in clientes %}
+                    <tr class="hover:bg-surface-container-low transition-colors group">
+                        <td class="px-lg py-lg">
+                            <div class="flex items-center gap-md">
+                                {% if c.tipo_cliente == 'mayoreo' %}
+                                <div class="w-10 h-10 rounded-full bg-tertiary-container flex items-center justify-center text-on-tertiary-container shrink-0">
+                                    <span class="material-symbols-outlined">corporate_fare</span>
+                                </div>
+                                {% else %}
+                                <div class="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center text-on-secondary-container font-bold shrink-0">
+                                    {{ c.nombre[:2]|upper }}
+                                </div>
+                                {% endif %}
+                                <div>
+                                    <div class="font-bold text-on-surface">{{ c.nombre }}</div>
+                                    <div class="flex gap-xs mt-1">
+                                        <span class="text-[10px] px-sm py-0.5 rounded-full font-bold {{ 'bg-tertiary-container text-on-tertiary-container' if c.tipo_cliente == 'mayoreo' else 'bg-surface-variant text-on-surface-variant' }}">
+                                            {{ c.categoria or (c.tipo_cliente|upper) }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-lg py-lg text-body-md">{{ c.nit or '—' }}</td>
+                        <td class="px-lg py-lg text-body-md">{{ c.telefono or '—' }}</td>
+                        <td class="px-lg py-lg text-body-md">
+                            {% if c.ultima_compra %}{{ c.ultima_compra.strftime('%d %b, %Y') }}{% else %}<span class="text-secondary">Sin compras</span>{% endif %}
+                        </td>
+                        <td class="px-lg py-lg no-imprimir">
+                            <div class="flex justify-center gap-sm">
+                                {% if puede('clientes.editar') %}
+                                <button type="button" title="Editar"
+                                        class="btn-editar-cliente material-symbols-outlined p-sm hover:bg-primary-fixed hover:text-primary rounded-lg transition-all"
+                                        data-id="{{ c.id }}" data-nombre="{{ c.nombre }}" data-tipo="{{ c.tipo_cliente }}"
+                                        data-categoria="{{ c.categoria or '' }}" data-telefono="{{ c.telefono or '' }}"
+                                        data-direccion="{{ c.direccion or '' }}" data-nit="{{ c.nit or '' }}">edit</button>
+                                {% endif %}
+                                {% if c.nombre != 'Cliente General' and puede('clientes.eliminar') %}
+                                <form method="post" action="{{ url_for('ventas.eliminar_cliente', cliente_id=c.id) }}" class="form-eliminar-cliente" data-nombre="{{ c.nombre }}">
+                                    <button type="submit" title="Eliminar" class="material-symbols-outlined p-sm hover:bg-error-container hover:text-error rounded-lg transition-all">delete</button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td class="px-lg py-8 text-secondary text-center" colspan="5">No hay clientes que coincidan con el filtro.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- Formulario rápido + resumen -->
+    <section class="no-imprimir grid grid-cols-1 xl:grid-cols-3 gap-lg" id="formulario-registro">
+        {% if puede('clientes.crear') %}
+        <div class="xl:col-span-2 bg-surface-container-lowest p-xl rounded-xl border border-outline-variant shadow-sm">
+            <div class="flex items-center gap-md mb-xl">
+                <div class="bg-primary-container p-sm rounded-lg text-on-primary-container">
+                    <span class="material-symbols-outlined">description</span>
+                </div>
+                <h3 class="font-headline-md text-headline-md">Formulario de Registro Rápido</h3>
+            </div>
+            <form method="post" action="{{ url_for('ventas.crear_cliente_form') }}" class="space-y-lg">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-lg">
+                    <div class="space-y-xs">
+                        <label class="font-label-md text-secondary">Nombre o Razón Social</label>
+                        <input name="nombre" required class="w-full min-h-[48px] bg-surface border-2 border-outline-variant rounded-lg px-md focus:border-primary focus:ring-0 outline-none transition-all" placeholder="Ej: Juan Pérez o Distribuidora S.A." type="text">
+                    </div>
+                    <div class="space-y-xs">
+                        <label class="font-label-md text-secondary">NIT / Identificación</label>
+                        <input name="nit" class="w-full min-h-[48px] bg-surface border-2 border-outline-variant rounded-lg px-md focus:border-primary focus:ring-0 outline-none transition-all" placeholder="CF si no aplica" type="text">
+                    </div>
+                    <div class="space-y-xs">
+                        <label class="font-label-md text-secondary">Teléfono de Contacto</label>
+                        <input name="telefono" class="w-full min-h-[48px] bg-surface border-2 border-outline-variant rounded-lg px-md focus:border-primary focus:ring-0 outline-none transition-all" placeholder="0000-0000" type="tel">
+                    </div>
+                    <div class="space-y-xs">
+                        <label class="font-label-md text-secondary">Tipo de Cliente</label>
+                        <select name="tipo_cliente" class="w-full min-h-[48px] bg-surface border-2 border-outline-variant rounded-lg px-md focus:border-primary focus:ring-0 outline-none transition-all appearance-none">
+                            {% for tipo in tipos_cliente %}
+                            <option value="{{ tipo }}">{{ tipo|capitalize }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="space-y-xs md:col-span-2">
+                        <label class="font-label-md text-secondary">Categoría (Opcional)</label>
+                        <input name="categoria" class="w-full min-h-[48px] bg-surface border-2 border-outline-variant rounded-lg px-md focus:border-primary focus:ring-0 outline-none transition-all" placeholder="Ej: Restaurante, Comedor, Tienda" type="text">
+                    </div>
+                </div>
+                <div class="flex justify-end pt-md">
+                    <button class="bg-primary text-on-primary px-xl py-md rounded-xl font-bold hover:opacity-90 transition-all min-w-[200px] min-h-[48px]" type="submit">
+                        Guardar Cliente
+                    </button>
+                </div>
+            </form>
+        </div>
+        {% endif %}
+
+        <div class="{{ 'xl:col-span-3' if not puede('clientes.crear') else '' }} bg-secondary-container text-on-secondary-container p-xl rounded-xl border border-outline-variant relative overflow-hidden flex flex-col justify-between">
+            <div class="z-10">
+                <h4 class="font-label-xl text-label-xl mb-md">Resumen de Cartera</h4>
+                <div class="space-y-md">
+                    <div class="flex justify-between items-end border-b border-on-secondary-container/20 pb-sm">
+                        <span class="font-label-md opacity-80">Total Clientes</span>
+                        <span class="font-headline-md">{{ resumen.total }}</span>
+                    </div>
+                    <div class="flex justify-between items-end border-b border-on-secondary-container/20 pb-sm">
+                        <span class="font-label-md opacity-80">Mayoristas</span>
+                        <span class="font-headline-md">{{ resumen.total_mayoreo }}</span>
+                    </div>
+                    <div class="flex justify-between items-end">
+                        <span class="font-label-md opacity-80">Individuales</span>
+                        <span class="font-headline-md">{{ resumen.total_detalle }}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-xl z-10">
+                <a href="{{ url_for('ventas.historial') }}" class="w-full block text-center py-md border-2 border-on-secondary-container rounded-xl font-bold hover:bg-on-secondary-container hover:text-secondary-container transition-all min-h-[48px] leading-[24px]">
+                    Ver Historial de Ventas
+                </a>
+            </div>
+            <div class="absolute -right-8 -bottom-8 opacity-10">
+                <span class="material-symbols-outlined text-[160px]">diversity_3</span>
+            </div>
+        </div>
+    </section>
+</div>
+
+<!-- Modal: editar cliente -->
+<div id="modal-editar-cliente" class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/50 backdrop-blur-sm p-gutter">
+    <div class="bg-surface-container-lowest w-full max-w-lg rounded-2xl shadow-xl overflow-hidden border border-outline-variant flex flex-col">
+        <div class="p-lg border-b border-outline-variant flex justify-between items-center bg-surface">
+            <h2 class="font-headline-md text-primary">Editar Cliente</h2>
+            <button type="button" class="text-secondary hover:text-on-surface" onclick="document.getElementById('modal-editar-cliente').classList.add('hidden'); document.getElementById('modal-editar-cliente').classList.remove('flex')">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <form id="form-editar-cliente" method="post" class="p-lg space-y-md">
+            <div class="space-y-xs">
+                <label class="font-label-md text-secondary">Nombre o Razón Social</label>
+                <input id="editar-nombre" name="nombre" required class="w-full h-11 px-md border-2 border-outline-variant rounded-lg focus:border-primary focus:ring-0 text-sm bg-surface">
+            </div>
+            <div class="grid grid-cols-2 gap-md">
+                <div class="space-y-xs">
+                    <label class="font-label-md text-secondary">Tipo de Cliente</label>
+                    <select id="editar-tipo" name="tipo_cliente" class="w-full h-11 px-md border-2 border-outline-variant rounded-lg focus:border-primary focus:ring-0 text-sm bg-surface">
+                        {% for tipo in tipos_cliente %}
+                        <option value="{{ tipo }}">{{ tipo|capitalize }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="space-y-xs">
+                    <label class="font-label-md text-secondary">Categoría</label>
+                    <input id="editar-categoria" name="categoria" class="w-full h-11 px-md border-2 border-outline-variant rounded-lg focus:border-primary focus:ring-0 text-sm bg-surface" placeholder="Ej: Restaurante">
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-md">
+                <div class="space-y-xs">
+                    <label class="font-label-md text-secondary">Teléfono</label>
+                    <input id="editar-telefono" name="telefono" class="w-full h-11 px-md border-2 border-outline-variant rounded-lg focus:border-primary focus:ring-0 text-sm bg-surface">
+                </div>
+                <div class="space-y-xs">
+                    <label class="font-label-md text-secondary">NIT</label>
+                    <input id="editar-nit" name="nit" class="w-full h-11 px-md border-2 border-outline-variant rounded-lg focus:border-primary focus:ring-0 text-sm bg-surface">
+                </div>
+            </div>
+            <div class="space-y-xs">
+                <label class="font-label-md text-secondary">Dirección</label>
+                <input id="editar-direccion" name="direccion" class="w-full h-11 px-md border-2 border-outline-variant rounded-lg focus:border-primary focus:ring-0 text-sm bg-surface">
+            </div>
+            <div class="flex justify-end gap-md pt-md">
+                <button type="button" class="px-lg py-sm border-2 border-outline-variant text-secondary font-bold rounded-xl hover:bg-surface-variant transition-colors" onclick="document.getElementById('modal-editar-cliente').classList.add('hidden'); document.getElementById('modal-editar-cliente').classList.remove('flex')">Cancelar</button>
+                <button type="submit" class="px-lg py-sm bg-primary text-on-primary font-bold rounded-xl hover:opacity-90 transition-all active:scale-95">Guardar Cambios</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    (function () {
+        const modal = document.getElementById('modal-editar-cliente');
+        const form = document.getElementById('form-editar-cliente');
+        const urlPlantilla = "{{ url_for('ventas.editar_cliente', cliente_id=0) }}"; // termina en ".../0/editar"
+
+        document.querySelectorAll('.form-eliminar-cliente').forEach(function (frm) {
+            frm.addEventListener('submit', function (ev) {
+                const ok = confirm('¿Eliminar a ' + frm.dataset.nombre + '? No se borrará su historial de ventas.');
+                if (!ok) ev.preventDefault();
+            });
+        });
+
+        document.querySelectorAll('.btn-editar-cliente').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                form.action = urlPlantilla.replace(/\/0\/editar$/, '/' + btn.dataset.id + '/editar');
+                document.getElementById('editar-nombre').value = btn.dataset.nombre || '';
+                document.getElementById('editar-tipo').value = btn.dataset.tipo || 'detalle';
+                document.getElementById('editar-categoria').value = btn.dataset.categoria || '';
+                document.getElementById('editar-telefono').value = btn.dataset.telefono || '';
+                document.getElementById('editar-nit').value = btn.dataset.nit || '';
+                document.getElementById('editar-direccion').value = btn.dataset.direccion || '';
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            });
+        });
+    })();
+</script>
+{% endblock %}

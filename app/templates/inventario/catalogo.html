@@ -1,0 +1,139 @@
+{% extends "inventario/_layout.html" %}
+{% set activo = "inventario" %}
+
+{% block titulo %}Catálogo y Stock de Inventario - Carnicería La Mija{% endblock %}
+{% block encabezado %}Catálogo y Stock de Inventario{% endblock %}
+
+{% block contenido %}
+<div class="mb-xl flex flex-col md:flex-row md:items-end justify-between gap-md">
+    <div>
+        <p class="text-secondary font-body-md">Gestión precisa de existencias generadas por el desposte y control de stock bajo.</p>
+    </div>
+    {% if puede('inventario.crear') %}
+    <a href="{{ url_for('inventario.nuevo_producto') }}" class="no-imprimir bg-primary text-on-primary px-xl py-3 rounded-lg flex items-center justify-center gap-sm font-bold shadow-md hover:opacity-90 transition-opacity min-h-[48px]">
+        <span class="material-symbols-outlined">add</span>
+        Nuevo Producto
+    </a>
+    {% endif %}
+</div>
+
+<!-- Tarjetas resumen -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-lg mb-xl">
+    <div class="bg-surface-container-lowest border border-outline-variant p-lg rounded-xl shadow-sm flex flex-col justify-between overflow-hidden relative">
+        <div class="absolute -right-4 -top-4 opacity-5">
+            <span class="material-symbols-outlined text-[120px]">inventory_2</span>
+        </div>
+        <span class="text-secondary font-label-md uppercase tracking-widest">Total de Productos</span>
+        <h3 class="font-data-display text-data-display text-primary mt-sm leading-none">{{ resumen.total_productos }}</h3>
+    </div>
+    <div class="bg-surface-container-lowest border border-outline-variant p-lg rounded-xl shadow-sm flex flex-col justify-between overflow-hidden relative">
+        <div class="absolute -right-4 -top-4 opacity-5">
+            <span class="material-symbols-outlined text-[120px]">payments</span>
+        </div>
+        <span class="text-secondary font-label-md uppercase tracking-widest">Valor Total Inventario</span>
+        <h3 class="font-data-display text-data-display mt-sm leading-none">Q{{ '%.2f'|format(resumen.valor_total) }}</h3>
+        <div class="mt-md text-xs text-secondary italic">Calculado a precio de detalle</div>
+    </div>
+    <div class="bg-error-container border border-error p-lg rounded-xl shadow-sm flex flex-col justify-between overflow-hidden relative">
+        <div class="absolute -right-4 -top-4 opacity-10 text-error">
+            <span class="material-symbols-outlined text-[120px]">warning</span>
+        </div>
+        <span class="text-on-error-container font-label-md uppercase tracking-widest font-bold">Alertas de Stock Bajo</span>
+        <h3 class="font-data-display text-data-display text-error mt-sm leading-none">{{ '%02d'|format(resumen.stock_bajo) }}</h3>
+        {% if resumen.stock_bajo > 0 %}
+        <div class="mt-md text-error font-bold flex items-center gap-xs">
+            <span class="material-symbols-outlined text-sm">priority_high</span>
+            Requiere reposición
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Filtros -->
+<form method="get" action="{{ url_for('inventario.catalogo_productos') }}"
+      class="no-imprimir bg-surface border border-outline-variant rounded-t-xl p-md flex flex-col md:flex-row items-center gap-md border-b-0">
+    <div class="flex flex-wrap gap-sm">
+        <button type="submit" name="categoria" value=""
+                class="px-md py-2 rounded-full font-label-md text-label-md {{ 'bg-primary text-on-primary' if not categoria_activa else 'bg-surface-container-high text-on-surface-variant hover:bg-outline-variant transition-colors' }}">
+            Todos
+        </button>
+        {% for cat in categorias %}
+        <button type="submit" name="categoria" value="{{ cat }}"
+                class="px-md py-2 rounded-full font-label-md text-label-md {{ 'bg-primary text-on-primary' if categoria_activa == cat else 'bg-surface-container-high text-on-surface-variant hover:bg-outline-variant transition-colors' }}">
+            {{ cat }}
+        </button>
+        {% endfor %}
+    </div>
+    <div class="md:ml-auto flex items-center gap-sm bg-surface-container-high rounded-lg px-md py-2">
+        <span class="material-symbols-outlined text-sm text-secondary">search</span>
+        <input type="text" name="q" value="{{ busqueda }}" placeholder="Buscar producto o código..." class="bg-transparent border-none focus:ring-0 text-sm w-48">
+    </div>
+</form>
+
+<!-- Tabla -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-b-xl overflow-x-auto shadow-sm">
+    <table class="w-full text-left border-collapse min-w-[900px]">
+        <thead class="bg-surface-container-high text-on-surface-variant font-label-md uppercase text-xs tracking-wider border-b border-outline-variant">
+            <tr>
+                <th class="px-lg py-4 font-bold">Código</th>
+                <th class="px-lg py-4 font-bold">Producto</th>
+                <th class="px-lg py-4 font-bold">Categoría</th>
+                <th class="px-lg py-4 font-bold">Precio Detalle</th>
+                <th class="px-lg py-4 font-bold">Precio Mayoreo</th>
+                <th class="px-lg py-4 font-bold">Stock Actual</th>
+                <th class="px-lg py-4 font-bold">Límite Mín</th>
+                <th class="px-lg py-4 font-bold">Estado</th>
+                {% if puede('inventario.editar') %}<th class="px-lg py-4 font-bold text-center no-imprimir">Acciones</th>{% endif %}
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-outline-variant">
+            {% for p in productos %}
+            <tr class="hover:bg-surface-container-low transition-colors group">
+                <td class="px-lg py-5 font-bold text-primary">{{ p.codigo }}</td>
+                <td class="px-lg py-5">
+                    <div class="flex items-center gap-md">
+                        {% if p.foto_archivo %}
+                        <img src="{{ url_for('static', filename='uploads/productos/' + p.foto_archivo) }}" alt="{{ p.nombre }}"
+                             class="w-10 h-10 rounded object-cover border border-outline-variant">
+                        {% else %}
+                        <div class="w-10 h-10 rounded bg-surface-container-high flex items-center justify-center text-primary">
+                            <span class="material-symbols-outlined">restaurant</span>
+                        </div>
+                        {% endif %}
+                        <span class="font-bold">{{ p.nombre }}</span>
+                    </div>
+                </td>
+                <td class="px-lg py-5"><span class="px-sm py-1 bg-surface-variant rounded text-xs font-bold">{{ p.categoria }}</span></td>
+                <td class="px-lg py-5 font-bold">Q{{ '%.2f'|format(p.precio_detalle) }}<span class="text-xs text-secondary">/{{ p.unidad_venta }}</span></td>
+                <td class="px-lg py-5 text-secondary">Q{{ '%.2f'|format(p.precio_mayoreo) }}<span class="text-xs">/{{ p.unidad_venta }}</span></td>
+                <td class="px-lg py-5 font-extrabold {{ 'text-error' if p.stock_bajo else 'text-tertiary-container' }}">
+                    {{ '%.2f'|format(p.stock_actual) }} {{ p.unidad_venta }}
+                </td>
+                <td class="px-lg py-5 text-secondary">{{ '%.2f'|format(p.stock_minimo) }} {{ p.unidad_venta }}</td>
+                <td class="px-lg py-5">
+                    {% if p.stock_bajo %}
+                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-error-container text-error gap-1">
+                        <span class="w-2 h-2 bg-error rounded-full"></span> Stock Bajo
+                    </span>
+                    {% else %}
+                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-tertiary-fixed text-on-tertiary-fixed-variant gap-1">
+                        <span class="w-2 h-2 bg-tertiary rounded-full"></span> Stock Saludable
+                    </span>
+                    {% endif %}
+                </td>
+                {% if puede('inventario.editar') %}
+                <td class="px-lg py-5 text-center no-imprimir">
+                    <a href="{{ url_for('inventario.editar_producto', producto_id=p.id) }}" title="Editar producto"
+                       class="material-symbols-outlined p-sm hover:bg-primary-fixed hover:text-primary rounded-lg transition-all">edit</a>
+                </td>
+                {% endif %}
+            </tr>
+            {% else %}
+            <tr>
+                <td class="px-lg py-8 text-secondary text-center" colspan="9">No hay productos que coincidan con el filtro.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

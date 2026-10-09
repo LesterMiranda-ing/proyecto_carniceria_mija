@@ -1,0 +1,477 @@
+{% extends "inventario/_layout.html" %}
+{% set activo = "configuracion" %}
+
+{% block titulo %}Gestión de Usuarios y Roles - Carnicería La Mija{% endblock %}
+{% block encabezado %}Gestión de Usuarios y Roles{% endblock %}
+
+{% block contenido %}
+{% set iconos = {'gerente': 'manage_accounts', 'carnicero': 'restaurant', 'cajero': 'payments'} %}
+
+{# Casilla de permiso del panel #}
+{% macro casilla(valor, etiqueta, marcado, bloqueado, clase, modulo) %}
+<label class="flex items-center justify-between p-sm bg-surface-container-lowest rounded-lg border border-outline-variant transition-colors {{ 'cursor-not-allowed opacity-70' if bloqueado else 'cursor-pointer hover:border-primary' }}">
+    <span class="font-body-md text-on-surface">{{ etiqueta }}</span>
+    <input type="checkbox" name="permisos" value="{{ valor }}" data-modulo="{{ modulo }}"
+           class="{{ clase }} h-5 w-5 rounded text-primary focus:ring-primary" {{ 'checked' if marcado }} {{ 'disabled' if bloqueado }}>
+</label>
+{% endmacro %}
+
+{# Fila de excepción de permiso: select Heredado / Permitir / Denegar, para el modal de editar usuario #}
+{% macro excepcion_fila(codigo, etiqueta, es_accion) %}
+<div class="flex items-center justify-between gap-sm py-1 {{ 'pl-lg' if es_accion else '' }}">
+    <span class="text-sm {{ 'text-secondary' if es_accion else 'font-bold text-on-surface' }}">{{ etiqueta }}</span>
+    <div class="flex items-center gap-xs">
+        <span class="text-[10px] text-secondary w-16 text-right hint-rol" data-hint-para="{{ codigo }}"></span>
+        <select name="permiso_{{ codigo }}" class="select-excepcion text-xs border border-outline-variant rounded px-1 py-1 bg-surface focus:ring-1 focus:ring-primary">
+            <option value="heredado">Heredado</option>
+            <option value="permitir">Permitir</option>
+            <option value="denegar">Denegar</option>
+        </select>
+    </div>
+</div>
+{% endmacro %}
+
+{# Selector de rol en tarjetas (el mismo estilo del login y del prototipo) #}
+{% macro tarjetas_rol(defecto_no_gerente) %}
+<div class="grid gap-sm {{ 'grid-cols-2' if roles|length <= 2 else 'grid-cols-3' }}">
+    {% for r in roles %}
+    <label class="cursor-pointer">
+        <input class="hidden peer rol-radio" type="radio" name="rol_id" value="{{ r.id }}" required
+               {{ 'checked' if defecto_no_gerente and loop.index0 == 1 else '' }}>
+        <div class="flex flex-col items-center justify-center p-sm border-2 border-outline-variant rounded-lg text-center peer-checked:border-primary peer-checked:bg-primary-fixed peer-checked:text-on-primary-fixed peer-disabled:opacity-50 hover:bg-surface-container transition-all h-full">
+            <span class="material-symbols-outlined mb-xs">{{ iconos.get(r.nombre|lower, 'badge') }}</span>
+            <span class="font-label-md text-label-md">{{ r.nombre }}</span>
+        </div>
+    </label>
+    {% endfor %}
+</div>
+{% endmacro %}
+
+<div class="space-y-gutter pb-24">
+    <div class="flex flex-col md:flex-row justify-between md:items-end gap-md">
+        <div class="space-y-md">
+            {% include "configuracion/_tabs.html" %}
+            <div>
+                <h3 class="font-headline-md text-headline-md text-on-surface">Usuarios del Sistema</h3>
+                <p class="font-body-md text-secondary">Administra los accesos y permisos del personal de la carnicería.</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-md">
+            <form method="get" action="{{ url_for('configuracion.usuarios') }}" class="relative">
+                <input type="hidden" name="rol" value="{{ rol_sel.id if rol_sel else '' }}">
+                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-secondary">search</span>
+                <input class="pl-10 pr-4 py-2 rounded-full border border-outline-variant bg-surface-container-low text-body-md focus:ring-2 focus:ring-primary outline-none w-56"
+                       name="q" value="{{ busqueda }}" placeholder="Buscar usuario..." type="text">
+            </form>
+            <button type="button" id="btn-nuevo-usuario" class="flex items-center gap-sm px-xl py-md bg-primary text-on-primary rounded-lg font-bold shadow-md active:scale-95 transition-transform">
+                <span class="material-symbols-outlined">person_add</span>
+                Nuevo Usuario
+            </button>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-3 gap-gutter items-start">
+        <!-- Tabla de usuarios -->
+        <div class="xl:col-span-2 bg-surface-container-lowest rounded-xl border border-outline-variant overflow-hidden shadow-sm">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-surface-container-low border-b border-outline-variant">
+                            <th class="px-md py-md font-label-md text-secondary uppercase tracking-wider">Nombre / Usuario</th>
+                            <th class="px-md py-md font-label-md text-secondary uppercase tracking-wider">Rol</th>
+                            <th class="px-md py-md font-label-md text-secondary uppercase tracking-wider">Estado</th>
+                            <th class="px-md py-md font-label-md text-secondary uppercase tracking-wider">Último Acceso</th>
+                            <th class="px-md py-md font-label-md text-secondary uppercase tracking-wider">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-outline-variant">
+                        {% for u in usuarios %}
+                        <tr class="hover:bg-surface-container-low transition-colors">
+                            <td class="px-md py-md">
+                                <div class="flex items-center gap-md">
+                                    <div class="h-10 w-10 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center font-bold shrink-0">
+                                        {{ u.nombre_completo[:2]|upper }}
+                                    </div>
+                                    <div>
+                                        <p class="font-label-xl text-label-xl text-on-surface">
+                                            {{ u.nombre_completo }}
+                                            {% if u.id == usuario_actual.id %}<span class="ml-1 text-xs font-bold text-primary">(tú)</span>{% endif %}
+                                        </p>
+                                        <p class="font-label-md text-secondary">@{{ u.usuario }}{% if u.email %} · {{ u.email }}{% endif %}</p>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-md py-md">
+                                <span class="px-3 py-1 rounded-full text-xs font-bold {{ 'bg-tertiary-container text-on-tertiary-container' if u.rol_nombre == 'Gerente' and u.rol_es_sistema else 'bg-secondary-container text-on-secondary-container' }}">{{ u.rol_nombre }}</span>
+                            </td>
+                            <td class="px-md py-md">
+                                <div class="flex items-center gap-xs {{ 'text-tertiary' if u.activo else 'text-error' }}">
+                                    <span class="w-2 h-2 rounded-full {{ 'bg-tertiary' if u.activo else 'bg-error' }}"></span>
+                                    <span class="font-label-md">{{ 'Activo' if u.activo else 'Inactivo' }}</span>
+                                </div>
+                                {% if u.debe_cambiar_password %}
+                                <p class="text-xs text-secondary mt-1" title="Su contraseña es temporal">Contraseña temporal</p>
+                                {% endif %}
+                            </td>
+                            <td class="px-md py-md font-label-md text-secondary">{{ u.ultimo_acceso|ultimo_acceso }}</td>
+                            <td class="px-md py-md">
+                                <div class="flex gap-sm items-center">
+                                    <button type="button" title="Editar"
+                                            class="btn-editar-usuario p-2 hover:bg-secondary-container rounded-lg text-secondary transition-colors"
+                                            data-id="{{ u.id }}" data-nombre="{{ u.nombre_completo }}" data-usuario="{{ u.usuario }}"
+                                            data-email="{{ u.email or '' }}" data-rol="{{ u.rol_id }}" data-yo="{{ 1 if u.id == usuario_actual.id else 0 }}"
+                                            data-permisos='{{ excepciones.get(u.id, {})|tojson }}'>
+                                        <span class="material-symbols-outlined">edit</span>
+                                    </button>
+                                    {% if u.id != usuario_actual.id %}
+                                    <form method="post" action="{{ url_for('configuracion.cambiar_estado_usuario', usuario_id=u.id) }}"
+                                          class="form-estado-usuario" data-nombre="{{ u.nombre_completo }}" data-activar="{{ 0 if u.activo else 1 }}">
+                                        <input type="hidden" name="activo" value="{{ 0 if u.activo else 1 }}">
+                                        <button type="submit" title="{{ 'Desactivar' if u.activo else 'Activar' }}"
+                                                class="p-2 rounded-lg transition-colors {{ 'hover:bg-error-container text-error' if u.activo else 'bg-error text-on-error' }}">
+                                            <span class="material-symbols-outlined">{{ 'block' if u.activo else 'check_circle' }}</span>
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td class="px-md py-8 text-secondary text-center" colspan="5">No se encontraron usuarios.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Panel: Configurar permisos del rol -->
+        {% if rol_sel %}
+        <form method="post" action="{{ url_for('configuracion.guardar_permisos', rol_id=rol_sel.id) }}" id="form-permisos"
+              class="bg-surface-container rounded-xl border border-outline-variant shadow-lg flex flex-col h-full xl:sticky xl:top-24">
+            <div class="p-md border-b border-outline-variant flex justify-between items-center bg-primary text-on-primary rounded-t-xl">
+                <div>
+                    <h4 class="font-label-xl text-label-xl">Configurar Permisos</h4>
+                    <div class="flex items-center gap-xs text-xs opacity-90">
+                        <span>Editando Rol:</span>
+                        <select id="selector-rol-panel" class="bg-white/20 text-on-primary font-bold rounded px-2 py-0.5 border-none text-xs focus:ring-1 focus:ring-white">
+                            {% for r in roles %}
+                            <option value="{{ r.id }}" class="text-black" {{ 'selected' if r.id == rol_sel.id else '' }}>{{ r.nombre }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <span class="material-symbols-outlined">security</span>
+            </div>
+
+            <div class="p-md space-y-md overflow-y-auto max-h-[614px]">
+                {% if es_rol_gerente %}
+                <div class="p-sm rounded-lg bg-tertiary-container text-on-tertiary-container text-sm">
+                    El rol <strong>Gerente</strong> tiene acceso total (incluida Configuración) y no se puede restringir.
+                </div>
+                {% endif %}
+
+                <div>
+                    <h5 class="font-label-md text-primary font-bold mb-sm flex items-center gap-xs">
+                        <span class="material-symbols-outlined text-sm">widgets</span>
+                        ACCESO A MÓDULOS
+                    </h5>
+                    <div class="space-y-xs">
+                        {% for m in modulos %}
+                        {{ casilla(m.codigo ~ '.ver', m.nombre, (m.codigo ~ '.ver') in permisos_rol, es_rol_gerente, 'chk-ver', m.codigo) }}
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div>
+                    <h5 class="font-label-md text-primary font-bold mb-sm flex items-center gap-xs">
+                        <span class="material-symbols-outlined text-sm">lock_open</span>
+                        PERMISOS DE ACCIÓN
+                    </h5>
+                    <div class="space-y-xs">
+                        {% for m in modulos if m.acciones %}
+                        <p class="text-xs font-bold text-secondary uppercase tracking-wider pt-sm">{{ m.nombre }}</p>
+                        {% for accion, etiqueta in m.acciones %}
+                        {{ casilla(m.codigo ~ '.' ~ accion, etiqueta, (m.codigo ~ '.' ~ accion) in permisos_rol, es_rol_gerente, 'chk-accion', m.codigo) }}
+                        {% endfor %}
+                        {% endfor %}
+                    </div>
+                    <p class="text-xs text-secondary mt-sm">Las acciones atenuadas pertenecen a un módulo sin acceso: al marcarlas se activa también el acceso a ese módulo.</p>
+                </div>
+            </div>
+
+            {% if not es_rol_gerente %}
+            <div class="p-md mt-auto bg-surface-container-high rounded-b-xl border-t border-outline-variant">
+                <button type="submit" class="w-full py-md bg-primary text-on-primary rounded-lg font-bold shadow hover:opacity-90 active:scale-95 transition-all">
+                    Guardar Cambios
+                </button>
+            </div>
+            {% endif %}
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modal: Nuevo usuario -->
+<div id="modal-usuario-nuevo" class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/50 backdrop-blur-sm p-gutter">
+    <div class="bg-surface-container-lowest w-full max-w-xl rounded-2xl shadow-xl overflow-hidden border border-outline-variant flex flex-col max-h-[95vh]">
+        <div class="p-lg border-b border-outline-variant flex justify-between items-start bg-surface">
+            <div>
+                <h2 class="font-headline-md text-on-surface">Crear Nuevo Usuario</h2>
+                <p class="text-secondary text-sm">Ingrese los datos del nuevo integrante del equipo.</p>
+            </div>
+            <button type="button" class="cerrar-modal text-secondary hover:text-on-surface"><span class="material-symbols-outlined">close</span></button>
+        </div>
+        <form method="post" action="{{ url_for('configuracion.crear_usuario') }}" class="p-lg space-y-md overflow-y-auto" autocomplete="off">
+            <div class="space-y-xs">
+                <label class="font-label-md text-on-surface font-semibold" for="nuevo-nombre">Nombre Completo</label>
+                <input id="nuevo-nombre" name="nombre_completo" required maxlength="150" placeholder="Ej. Juan Pérez"
+                       class="w-full h-12 px-md border border-outline-variant rounded-lg bg-surface focus:ring-2 focus:ring-primary focus:border-primary">
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-md">
+                <div class="space-y-xs">
+                    <label class="font-label-md text-on-surface font-semibold" for="nuevo-usuario">Usuario</label>
+                    <input id="nuevo-usuario" name="usuario" required minlength="3" maxlength="50" placeholder="ej. jperez" autocapitalize="none"
+                           class="w-full h-12 px-md border border-outline-variant rounded-lg bg-surface focus:ring-2 focus:ring-primary focus:border-primary">
+                </div>
+                <div class="space-y-xs">
+                    <label class="font-label-md text-on-surface font-semibold" for="nuevo-email">Correo (opcional)</label>
+                    <input id="nuevo-email" name="email" type="email" maxlength="150" placeholder="usuario@lamija.com"
+                           class="w-full h-12 px-md border border-outline-variant rounded-lg bg-surface focus:ring-2 focus:ring-primary focus:border-primary">
+                </div>
+            </div>
+            <div class="space-y-sm">
+                <label class="font-label-md text-on-surface font-semibold">Rol del Sistema</label>
+                {{ tarjetas_rol(true) }}
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-md">
+                <div class="space-y-xs">
+                    <label class="font-label-md text-on-surface font-semibold" for="nuevo-password">Contraseña Inicial</label>
+                    <input id="nuevo-password" name="password" type="password" required minlength="8" autocomplete="new-password"
+                           class="w-full h-12 px-md border border-outline-variant rounded-lg bg-surface focus:ring-2 focus:ring-primary focus:border-primary">
+                </div>
+                <div class="space-y-xs">
+                    <label class="font-label-md text-on-surface font-semibold" for="nuevo-password2">Confirmar Contraseña</label>
+                    <input id="nuevo-password2" name="password_confirmacion" type="password" required minlength="8" autocomplete="new-password"
+                           class="w-full h-12 px-md border border-outline-variant rounded-lg bg-surface focus:ring-2 focus:ring-primary focus:border-primary">
+                </div>
+            </div>
+            <p class="text-xs text-secondary">Mínimo 8 caracteres, con letras y números. Será una contraseña temporal: el usuario deberá cambiarla al ingresar por primera vez.</p>
+            <div class="flex justify-end gap-md pt-sm border-t border-outline-variant">
+                <button type="button" class="cerrar-modal px-lg py-sm border-2 border-outline-variant text-secondary font-bold rounded-xl hover:bg-surface-variant transition-colors">Cancelar</button>
+                <button type="submit" class="px-lg py-sm bg-primary-container text-on-primary font-bold rounded-xl hover:opacity-90 transition-all active:scale-95">Guardar Usuario</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Editar usuario -->
+<div id="modal-usuario-editar" class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/50 backdrop-blur-sm p-gutter">
+    <div class="bg-surface-container-lowest w-full max-w-xl rounded-2xl shadow-xl overflow-hidden border border-outline-variant flex flex-col max-h-[95vh]">
+        <div class="p-lg border-b border-outline-variant flex justify-between items-start bg-surface">
+            <div>
+                <h2 class="font-headline-md text-on-surface">Editar Usuario</h2>
+                <p class="text-secondary text-sm">Usuario: <strong id="editar-usuario-login"></strong> (no se puede cambiar)</p>
+            </div>
+            <button type="button" class="cerrar-modal text-secondary hover:text-on-surface"><span class="material-symbols-outlined">close</span></button>
+        </div>
+        <div class="overflow-y-auto">
+            <form id="form-editar-usuario" method="post" class="p-lg space-y-md">
+                <div class="space-y-xs">
+                    <label class="font-label-md text-on-surface font-semibold" for="editar-nombre">Nombre Completo</label>
+                    <input id="editar-nombre" name="nombre_completo" required maxlength="150"
+                           class="w-full h-12 px-md border border-outline-variant rounded-lg bg-surface focus:ring-2 focus:ring-primary focus:border-primary">
+                </div>
+                <div class="space-y-xs">
+                    <label class="font-label-md text-on-surface font-semibold" for="editar-email">Correo (opcional)</label>
+                    <input id="editar-email" name="email" type="email" maxlength="150"
+                           class="w-full h-12 px-md border border-outline-variant rounded-lg bg-surface focus:ring-2 focus:ring-primary focus:border-primary">
+                </div>
+                <div class="space-y-sm">
+                    <label class="font-label-md text-on-surface font-semibold">Rol del Sistema</label>
+                    {{ tarjetas_rol(false) }}
+                    <p id="editar-aviso-yo" class="hidden text-xs text-secondary">No puedes cambiar tu propio rol.</p>
+                </div>
+                <div class="flex justify-end gap-md pt-sm">
+                    <button type="button" class="cerrar-modal px-lg py-sm border-2 border-outline-variant text-secondary font-bold rounded-xl hover:bg-surface-variant transition-colors">Cancelar</button>
+                    <button type="submit" class="px-lg py-sm bg-primary-container text-on-primary font-bold rounded-xl hover:opacity-90 transition-all active:scale-95">Guardar Cambios</button>
+                </div>
+            </form>
+
+            <form id="form-reset-password" method="post" class="p-lg space-y-sm border-t border-outline-variant bg-surface" autocomplete="off">
+                <h3 class="font-label-md text-on-surface font-bold flex items-center gap-xs">
+                    <span class="material-symbols-outlined text-sm">key</span>
+                    Restablecer contraseña
+                </h3>
+                <p class="text-xs text-secondary">Define una contraseña temporal y compártela con el usuario: deberá cambiarla al ingresar.</p>
+                <div class="flex gap-sm">
+                    <input id="reset-password" name="password_temporal" type="text" required minlength="8" autocomplete="off" placeholder="Contraseña temporal"
+                           class="flex-1 h-11 px-md border border-outline-variant rounded-lg bg-surface-container-lowest font-mono focus:ring-2 focus:ring-primary focus:border-primary">
+                    <button type="button" id="btn-generar-password" class="px-md h-11 border-2 border-outline-variant text-secondary font-bold rounded-lg hover:bg-surface-variant transition-colors">Generar</button>
+                    <button type="submit" class="px-md h-11 bg-secondary text-on-secondary font-bold rounded-lg hover:opacity-90 transition-all">Restablecer</button>
+                </div>
+            </form>
+
+            <form id="form-excepciones" method="post" class="p-lg space-y-sm border-t border-outline-variant">
+                <button type="button" id="btn-toggle-excepciones" class="flex items-center justify-between w-full text-left">
+                    <span class="font-label-md text-on-surface font-semibold flex items-center gap-xs">
+                        <span class="material-symbols-outlined text-sm">tune</span>
+                        Excepciones de Permisos (avanzado)
+                    </span>
+                    <span class="material-symbols-outlined text-sm text-secondary" id="icono-toggle-excepciones">expand_more</span>
+                </button>
+                <div id="contenido-excepciones" class="hidden space-y-md">
+                    <p class="text-xs text-secondary">
+                        Ajustes puntuales solo para este usuario, además de lo que ya le da su rol.
+                        <strong>Permitir</strong> le agrega algo que su rol no da; <strong>Denegar</strong> le quita algo que su rol sí da.
+                        La columna de la derecha indica si el rol elegido arriba ya lo otorga.
+                    </p>
+                    <div class="space-y-sm max-h-72 overflow-y-auto pr-1">
+                        {% for m in modulos %}
+                        <div class="border border-outline-variant rounded-lg p-sm">
+                            {{ excepcion_fila(m.codigo ~ '.ver', m.nombre, false) }}
+                            {% for accion, etiqueta in m.acciones %}
+                            {{ excepcion_fila(m.codigo ~ '.' ~ accion, etiqueta, true) }}
+                            {% endfor %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <button type="submit" class="w-full py-sm bg-secondary text-on-secondary font-bold rounded-lg hover:opacity-90 transition-all">Guardar Excepciones</button>
+                </div>
+                <p id="excepciones-aviso-gerente" class="hidden text-xs text-secondary">El Gerente tiene acceso total: no aplican excepciones.</p>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    const PERMISOS_POR_ROL = {{ permisos_por_rol|tojson }};
+    const ROL_GERENTE_ID = {{ (rol_gerente_id or 0)|tojson }};
+</script>
+<script>
+(function () {
+    const abrir = (m) => { m.classList.remove('hidden'); m.classList.add('flex'); };
+    const cerrar = (m) => { m.classList.add('hidden'); m.classList.remove('flex'); };
+    const modalNuevo = document.getElementById('modal-usuario-nuevo');
+    const modalEditar = document.getElementById('modal-usuario-editar');
+
+    document.getElementById('btn-nuevo-usuario').addEventListener('click', () => abrir(modalNuevo));
+    document.querySelectorAll('.cerrar-modal').forEach(b => b.addEventListener('click', () => { cerrar(modalNuevo); cerrar(modalEditar); }));
+
+    // --- Excepciones de permisos (dentro del modal de editar) ------------------------
+    const formExcepciones = document.getElementById('form-excepciones');
+    const contenidoExcepciones = document.getElementById('contenido-excepciones');
+    const avisoGerenteExcepciones = document.getElementById('excepciones-aviso-gerente');
+    const selectsExcepcion = Array.from(document.querySelectorAll('.select-excepcion'));
+
+    document.getElementById('btn-toggle-excepciones').addEventListener('click', function () {
+        const abierto = !contenidoExcepciones.classList.contains('hidden');
+        contenidoExcepciones.classList.toggle('hidden', abierto);
+        document.getElementById('icono-toggle-excepciones').textContent = abierto ? 'expand_more' : 'expand_less';
+    });
+
+    function actualizarHintsExcepciones() {
+        const rolMarcado = modalEditar.querySelector('.rol-radio:checked');
+        const otorgados = rolMarcado ? (PERMISOS_POR_ROL[rolMarcado.value] || []) : [];
+        document.querySelectorAll('.hint-rol').forEach(function (span) {
+            span.textContent = otorgados.includes(span.dataset.hintPara) ? 'Rol: sí' : 'Rol: no';
+        });
+    }
+
+    function actualizarVisibilidadExcepciones() {
+        const rolMarcado = modalEditar.querySelector('.rol-radio:checked');
+        const esGerente = !!rolMarcado && parseInt(rolMarcado.value, 10) === ROL_GERENTE_ID;
+        formExcepciones.querySelector('#btn-toggle-excepciones').classList.toggle('hidden', esGerente);
+        contenidoExcepciones.classList.toggle('hidden', true);
+        document.getElementById('icono-toggle-excepciones').textContent = 'expand_more';
+        avisoGerenteExcepciones.classList.toggle('hidden', !esGerente);
+        actualizarHintsExcepciones();
+    }
+    modalEditar.querySelectorAll('.rol-radio').forEach(r => r.addEventListener('change', actualizarVisibilidadExcepciones));
+
+    // --- Editar usuario ------------------------------------------------------------
+    const plantillaEditar = "{{ url_for('configuracion.editar_usuario', usuario_id=0) }}";
+    const plantillaPassword = "{{ url_for('configuracion.restablecer_password', usuario_id=0) }}";
+    const plantillaExcepciones = "{{ url_for('configuracion.guardar_permisos_usuario', usuario_id=0) }}";
+    document.querySelectorAll('.btn-editar-usuario').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            const id = btn.dataset.id;
+            document.getElementById('form-editar-usuario').action = plantillaEditar.replace(/\/0\/editar$/, '/' + id + '/editar');
+            document.getElementById('form-reset-password').action = plantillaPassword.replace(/\/0\/password$/, '/' + id + '/password');
+            formExcepciones.action = plantillaExcepciones.replace(/\/0\/permisos$/, '/' + id + '/permisos');
+            document.getElementById('editar-nombre').value = btn.dataset.nombre;
+            document.getElementById('editar-email').value = btn.dataset.email;
+            document.getElementById('editar-usuario-login').textContent = btn.dataset.usuario;
+            document.getElementById('reset-password').value = '';
+            const esYo = btn.dataset.yo === '1';
+            modalEditar.querySelectorAll('.rol-radio').forEach(function (radio) {
+                radio.checked = radio.value === btn.dataset.rol;
+                radio.disabled = esYo;
+            });
+            document.getElementById('editar-aviso-yo').classList.toggle('hidden', !esYo);
+
+            const excepcionesUsuario = JSON.parse(btn.dataset.permisos || '{}');
+            selectsExcepcion.forEach(function (select) {
+                const codigo = select.name.replace(/^permiso_/, '');
+                select.value = excepcionesUsuario[codigo] || 'heredado';
+            });
+            actualizarVisibilidadExcepciones();
+
+            abrir(modalEditar);
+        });
+    });
+
+    // Contraseña temporal aleatoria (sin caracteres ambiguos; siempre letras y números)
+    document.getElementById('btn-generar-password').addEventListener('click', function () {
+        const letras = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ', numeros = '23456789';
+        const azar = (n) => crypto.getRandomValues(new Uint32Array(1))[0] % n;
+        const chars = [];
+        for (let i = 0; i < 8; i++) chars.push(letras[azar(letras.length)]);
+        for (let i = 0; i < 2; i++) chars.push(numeros[azar(numeros.length)]);
+        for (let i = chars.length - 1; i > 0; i--) { const j = azar(i + 1); [chars[i], chars[j]] = [chars[j], chars[i]]; }
+        document.getElementById('reset-password').value = chars.join('');
+    });
+
+    // --- Activar / desactivar --------------------------------------------------------
+    document.querySelectorAll('.form-estado-usuario').forEach(function (frm) {
+        frm.addEventListener('submit', function (ev) {
+            const activar = frm.dataset.activar === '1';
+            const msg = activar ? '¿Activar a ' + frm.dataset.nombre + '?'
+                                : '¿Desactivar a ' + frm.dataset.nombre + '? Ya no podrá iniciar sesión.';
+            if (!confirm(msg)) ev.preventDefault();
+        });
+    });
+
+    // --- Panel de permisos ------------------------------------------------------------
+    const selector = document.getElementById('selector-rol-panel');
+    if (selector) {
+        selector.addEventListener('change', function () {
+            const q = new URLSearchParams(window.location.search);
+            q.set('rol', selector.value);
+            window.location.search = q.toString();
+        });
+    }
+    const verBoxes = Array.from(document.querySelectorAll('#form-permisos .chk-ver'));
+    const accionBoxes = Array.from(document.querySelectorAll('#form-permisos .chk-accion'));
+    const verDe = (mod) => verBoxes.find(v => v.dataset.modulo === mod);
+    const accionesDe = (mod) => accionBoxes.filter(a => a.dataset.modulo === mod);
+
+    // Las acciones de un módulo SIN acceso se ven atenuadas pero siguen siendo clicables:
+    // marcar una enciende el acceso al módulo (ver más abajo). Antes se bloqueaban y no se
+    // podían marcar. Solo el rol Gerente queda realmente bloqueado (no se puede restringir).
+    function sincronizar(mod) {
+        const ver = verDe(mod);
+        accionesDe(mod).forEach(function (a) {
+            if (ver.disabled) return;               // rol Gerente: todo bloqueado
+            if (!ver.checked) a.checked = false;
+            const fila = a.closest('label');
+            fila.classList.toggle('opacity-60', !ver.checked);
+            fila.title = ver.checked ? '' : 'Al marcarla también se activa el acceso al módulo';
+        });
+    }
+    verBoxes.forEach(v => { v.addEventListener('change', () => sincronizar(v.dataset.modulo)); sincronizar(v.dataset.modulo); });
+    accionBoxes.forEach(a => a.addEventListener('change', function () {
+        if (a.checked) { const v = verDe(a.dataset.modulo); if (v && !v.disabled) v.checked = true; }
+    }));
+})();
+</script>
+{% endblock %}

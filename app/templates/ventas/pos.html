@@ -1,0 +1,665 @@
+{% extends "inventario/_layout.html" %}
+{% set activo = "pos" %}
+
+{% block titulo %}Punto de Venta - Carnicería La Mija{% endblock %}
+{% block encabezado %}Punto de Venta{% endblock %}
+
+{% block contenido %}
+<div class="grid grid-cols-1 xl:grid-cols-12 gap-lg items-start">
+    <!-- Columna izquierda: catálogo de productos -->
+    <div class="xl:col-span-8 flex flex-col gap-md">
+        <!-- Filtros -->
+        <div class="flex flex-col sm:flex-row gap-sm">
+            <div class="flex gap-sm overflow-x-auto pb-xs">
+                <button type="button" data-categoria="" class="filtro-categoria px-lg py-sm bg-primary text-on-primary rounded-lg font-bold shadow-sm whitespace-nowrap">
+                    Todo
+                </button>
+                {% for cat in categorias %}
+                <button type="button" data-categoria="{{ cat }}" class="filtro-categoria px-lg py-sm bg-surface-container-high text-on-surface-variant hover:bg-outline-variant rounded-lg font-medium whitespace-nowrap">
+                    {{ cat }}
+                </button>
+                {% endfor %}
+            </div>
+            <div class="flex items-center bg-surface-container-high rounded-lg px-md py-2 sm:ml-auto sm:w-64">
+                <span class="material-symbols-outlined text-secondary text-sm mr-2">search</span>
+                <input type="text" id="buscador-producto" placeholder="Buscar producto..." class="bg-transparent border-none focus:ring-0 text-sm w-full">
+            </div>
+            <a href="{{ url_for('ventas.historial') }}" title="Historial de ventas" class="flex items-center justify-center px-md py-2 border border-outline-variant rounded-lg text-secondary hover:bg-surface-container-high">
+                <span class="material-symbols-outlined">history</span>
+            </a>
+        </div>
+
+        <!-- Grid de productos -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-md">
+            {% for p in productos %}
+            <button type="button"
+                    class="producto-card group flex flex-col p-md bg-surface-container-lowest border-2 border-outline-variant rounded-xl hover:border-primary hover:shadow-md transition-all text-left disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-outline-variant"
+                    data-id="{{ p.id }}"
+                    data-nombre="{{ p.nombre }}"
+                    data-unidad="{{ p.unidad_venta }}"
+                    data-precio-detalle="{{ p.precio_detalle }}"
+                    data-precio-mayoreo="{{ p.precio_mayoreo }}"
+                    data-stock="{{ p.stock_actual }}"
+                    data-categoria="{{ p.categoria }}"
+                    {{ 'disabled' if p.stock_actual|float <= 0 else '' }}>
+                <div class="bg-surface-container-low rounded-lg w-full aspect-square mb-sm flex items-center justify-center text-primary group-hover:bg-primary-container/10">
+                    <span class="material-symbols-outlined text-[40px]">restaurant</span>
+                </div>
+                <span class="font-bold text-body-md block truncate">{{ p.nombre }}</span>
+                <span class="text-secondary text-label-md">Q{{ '%.2f'|format(p.precio_detalle) }} / {{ p.unidad_venta }}</span>
+                <span class="text-xs {{ 'text-error' if p.stock_actual|float <= 0 else 'text-tertiary' }} font-bold mt-1">
+                    {{ '%.2f'|format(p.stock_actual) }} {{ p.unidad_venta }} disp.
+                </span>
+            </button>
+            {% else %}
+            <p class="col-span-full text-secondary text-center py-xl">No hay productos en el catálogo todavía.</p>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Columna derecha: carrito / detalle de venta -->
+    <div class="xl:col-span-4 flex flex-col gap-md xl:sticky xl:top-20">
+        <div class="bg-surface-container-lowest border border-outline-variant rounded-xl flex flex-col shadow-sm overflow-hidden">
+            <div class="p-md border-b border-outline-variant bg-surface-container-low flex justify-between items-center">
+                <h2 class="font-bold font-headline-md text-primary">Detalle de Venta</h2>
+                <span id="badge-tipo-precio" class="bg-primary-container text-on-primary-container px-sm py-xs rounded text-[12px] font-bold">Detalle</span>
+            </div>
+
+            <!-- Cliente -->
+            <div class="p-md border-b border-outline-variant space-y-xs">
+                <label class="font-label-md text-label-md text-secondary" for="selector-cliente">Cliente</label>
+                <div class="flex gap-sm">
+                    <select id="selector-cliente" class="flex-1 h-11 px-md border-2 border-outline-variant rounded-lg focus:border-primary focus:ring-0 text-sm bg-surface">
+                        {% for c in clientes %}
+                        <option value="{{ c.id }}" data-tipo="{{ c.tipo_cliente }}">{{ c.nombre }} ({{ c.tipo_cliente }})</option>
+                        {% endfor %}
+                    </select>
+                    {% if puede('clientes.crear') %}
+                    <button type="button" id="btn-nuevo-cliente" title="Nuevo cliente" class="w-11 h-11 flex items-center justify-center border-2 border-outline-variant rounded-lg text-secondary hover:bg-surface-variant">
+                        <span class="material-symbols-outlined">person_add</span>
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Carrito -->
+            <div id="lista-carrito" class="flex-1 overflow-y-auto p-md space-y-sm min-h-[100px] max-h-[280px]">
+                <p id="carrito-vacio-msg" class="text-secondary text-sm text-center py-lg">El carrito está vacío. Selecciona un producto para comenzar.</p>
+            </div>
+
+            <!-- Entrada de cantidad -->
+            <div class="p-md bg-surface-container-low border-t border-outline-variant space-y-md">
+                <div class="grid grid-cols-2 gap-sm">
+                    <button type="button" id="btn-precio-detalle" class="tipo-precio-btn py-sm rounded-lg border-2 border-primary text-primary font-bold bg-surface text-center" data-tipo="detalle">Detalle</button>
+                    <button type="button" id="btn-precio-mayoreo" class="tipo-precio-btn py-sm rounded-lg border border-outline-variant text-secondary font-medium hover:bg-surface text-center" data-tipo="mayoreo">Mayoreo</button>
+                </div>
+
+                <div>
+                    <label class="block text-label-md text-secondary mb-xs font-bold uppercase" id="etiqueta-cantidad">Selecciona un producto</label>
+                    <div id="caja-entrada-cantidad" class="flex items-center bg-surface border-2 border-primary rounded-xl px-md py-sm">
+                        <span class="material-symbols-outlined text-primary mr-sm">monitor_weight</span>
+                        <input id="entrada-cantidad" class="flex-1 w-full min-w-0 text-right font-data-display text-headline-lg focus:ring-0 border-none p-0 text-primary bg-transparent" type="text" value="0" inputmode="decimal">
+                    </div>
+                    <p id="aviso-stock-cantidad" class="text-xs text-error font-bold mt-1 hidden"></p>
+                </div>
+
+                <div class="grid grid-cols-3 gap-xs">
+                    {% for tecla in ['1','2','3','4','5','6','7','8','9','.','0'] %}
+                    <button type="button" class="tecla-numerica bg-surface border border-outline-variant p-sm rounded-lg font-bold text-headline-md hover:bg-primary-container hover:text-on-primary-container" data-tecla="{{ tecla }}">{{ tecla }}</button>
+                    {% endfor %}
+                    <button type="button" id="btn-borrar" class="bg-secondary-container text-on-secondary-container p-sm rounded-lg font-bold flex items-center justify-center">
+                        <span class="material-symbols-outlined">backspace</span>
+                    </button>
+                </div>
+                <p class="text-xs text-secondary text-center">Toca un producto para agregarlo, luego ajusta la cantidad aquí.</p>
+            </div>
+
+            <!-- Totales y acciones -->
+            <div class="p-md bg-surface-container-lowest space-y-sm border-t border-outline-variant">
+                <div class="flex items-center justify-between gap-sm">
+                    <label for="metodo-pago" class="text-label-md text-secondary font-bold">Método de Pago</label>
+                    <select id="metodo-pago" class="h-9 px-sm border-2 border-outline-variant rounded-lg text-sm bg-surface focus:border-primary focus:ring-0">
+                        {% for metodo in metodos_pago %}
+                        <option value="{{ metodo }}">{{ metodo }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="flex justify-between text-body-md">
+                    <span>Subtotal:</span>
+                    <span class="font-bold" id="total-subtotal">Q0.00</span>
+                </div>
+                <div class="flex justify-between text-headline-md font-bold text-primary pt-sm border-t border-outline-variant">
+                    <span>TOTAL:</span>
+                    <span id="total-general">Q0.00</span>
+                </div>
+                <div class="grid grid-cols-2 gap-sm mt-md">
+                    <button type="button" id="btn-cancelar-venta" class="py-md bg-outline-variant text-on-surface-variant font-bold rounded-xl flex items-center justify-center gap-sm hover:bg-surface-variant transition-colors">
+                        <span class="material-symbols-outlined">cancel</span>
+                        Cancelar
+                    </button>
+                    <button type="button" id="btn-facturar" class="py-md bg-primary text-on-primary font-bold rounded-xl flex items-center justify-center gap-sm hover:opacity-90 transition-colors shadow-lg">
+                        <span class="material-symbols-outlined">receipt_long</span>
+                        Facturar
+                    </button>
+                </div>
+                <p id="mensaje-error-venta" class="text-error text-sm font-bold text-center hidden"></p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: nuevo cliente rápido -->
+<div id="modal-cliente" class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/50 backdrop-blur-sm p-gutter">
+    <div class="bg-surface-container-lowest w-full max-w-md rounded-2xl shadow-xl overflow-hidden border border-outline-variant flex flex-col">
+        <div class="p-lg border-b border-outline-variant flex justify-between items-center bg-surface">
+            <h2 class="font-headline-md text-primary">Nuevo Cliente</h2>
+            <button type="button" class="text-secondary hover:text-on-surface" onclick="document.getElementById('modal-cliente').classList.add('hidden'); document.getElementById('modal-cliente').classList.remove('flex')">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <div class="p-lg space-y-md">
+            <div class="flex flex-col gap-xs">
+                <label class="font-label-md text-label-md text-secondary" for="nuevo-cliente-nombre">Nombre</label>
+                <input id="nuevo-cliente-nombre" type="text" class="h-11 px-md border-2 border-outline-variant rounded-lg focus:border-primary focus:ring-0 text-sm bg-surface" placeholder="Nombre del cliente">
+            </div>
+            <div class="flex flex-col gap-xs">
+                <label class="font-label-md text-label-md text-secondary" for="nuevo-cliente-tipo">Tipo de Cliente</label>
+                <select id="nuevo-cliente-tipo" class="h-11 px-md border-2 border-outline-variant rounded-lg focus:border-primary focus:ring-0 text-sm bg-surface">
+                    <option value="detalle">Detalle</option>
+                    <option value="mayoreo">Mayoreo</option>
+                </select>
+            </div>
+            <p id="modal-cliente-error" class="text-error text-sm font-bold hidden"></p>
+        </div>
+        <div class="p-lg bg-surface border-t border-outline-variant flex justify-end gap-md">
+            <button type="button" class="px-lg py-sm border-2 border-outline-variant text-secondary font-bold rounded-xl hover:bg-surface-variant transition-colors" onclick="document.getElementById('modal-cliente').classList.add('hidden'); document.getElementById('modal-cliente').classList.remove('flex')">Cancelar</button>
+            <button type="button" id="btn-guardar-cliente" class="px-lg py-sm bg-primary text-on-primary font-bold rounded-xl hover:opacity-90 transition-all active:scale-95">Guardar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: alerta de bajo stock tras facturar (la venta YA se registró; esto solo avisa) -->
+<div id="modal-alerta-stock" class="fixed inset-0 z-[110] hidden items-center justify-center bg-black/60 backdrop-blur-sm p-gutter">
+    <div class="bg-surface-container-lowest w-full max-w-md rounded-2xl shadow-xl overflow-hidden border-2 border-error flex flex-col">
+        <div class="p-lg bg-error-container flex items-center gap-md">
+            <span class="material-symbols-outlined text-error text-4xl" style="font-variation-settings: 'FILL' 1;">warning</span>
+            <div>
+                <h2 class="font-headline-md text-on-error-container">Alerta de bajo stock</h2>
+                <p class="text-sm text-on-error-container">La venta se registró correctamente.</p>
+            </div>
+        </div>
+        <ul id="alerta-stock-lista" class="p-lg space-y-sm max-h-64 overflow-y-auto"></ul>
+        <div class="p-lg bg-surface border-t border-outline-variant flex justify-end">
+            <button type="button" id="btn-alerta-stock-ok" class="px-lg py-sm bg-primary text-on-primary font-bold rounded-xl hover:opacity-90 transition-all active:scale-95">Entendido</button>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    const carrito = [];
+    let lineaActivaId = null;
+    let tipoPrecioActual = 'detalle';
+    let bufferCantidad = '0';
+
+    const selectorCliente = document.getElementById('selector-cliente');
+    const listaCarrito = document.getElementById('lista-carrito');
+    const carritoVacioMsg = document.getElementById('carrito-vacio-msg');
+    const entradaCantidad = document.getElementById('entrada-cantidad');
+    const cajaEntradaCantidad = document.getElementById('caja-entrada-cantidad');
+    const etiquetaCantidad = document.getElementById('etiqueta-cantidad');
+    const avisoStock = document.getElementById('aviso-stock-cantidad');
+    const badgeTipoPrecio = document.getElementById('badge-tipo-precio');
+    const mensajeError = document.getElementById('mensaje-error-venta');
+    const btnFacturar = document.getElementById('btn-facturar');
+
+    function formatoQ(valor) {
+        return 'Q' + valor.toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    function round2(n) { return Math.round(n * 100) / 100; }
+
+    function mostrarError(texto) {
+        mensajeError.textContent = texto;
+        mensajeError.classList.remove('hidden');
+    }
+    function limpiarError() {
+        mensajeError.classList.add('hidden');
+        mensajeError.textContent = '';
+    }
+
+    function lineaActiva() {
+        return carrito.find(l => l.productoId === lineaActivaId) || null;
+    }
+
+    // Motivo por el que una línea NO se puede facturar (null si está correcta).
+    function motivoInvalido(linea) {
+        if (!linea.cantidad || linea.cantidad <= 0) {
+            return 'La cantidad debe ser mayor a 0.';
+        }
+        if (linea.unidad === 'unidad' && !Number.isInteger(linea.cantidad)) {
+            return 'Este producto se vende por unidad: ingresa un número entero.';
+        }
+        if (linea.cantidad > linea.stockDisponible) {
+            return 'Stock insuficiente: pediste ' + linea.cantidad + ' ' + linea.unidad +
+                   ', solo hay ' + linea.stockDisponible + ' ' + linea.unidad + ' disponibles.';
+        }
+        return null;
+    }
+
+    // --- Selección / alta de producto -------------------------------------------
+    function activarLinea(productoId) {
+        lineaActivaId = productoId;
+        const linea = lineaActiva();
+
+        document.querySelectorAll('.producto-card').forEach(function (c) {
+            const esta = parseInt(c.dataset.id, 10) === productoId;
+            c.classList.toggle('border-primary', esta);
+            c.classList.toggle('shadow-md', esta);
+        });
+
+        if (!linea) {
+            bufferCantidad = '0';
+            entradaCantidad.value = '0';
+            etiquetaCantidad.textContent = 'Selecciona un producto';
+            avisoStock.classList.add('hidden');
+            cajaEntradaCantidad.classList.remove('border-error');
+            cajaEntradaCantidad.classList.add('border-primary');
+            return;
+        }
+
+        bufferCantidad = String(linea.cantidad);
+        entradaCantidad.value = bufferCantidad;
+        etiquetaCantidad.textContent = linea.nombre + ' (' + linea.unidad.toUpperCase() + ') — disp. ' + linea.stockDisponible;
+        mostrarAvisoLinea(linea);
+    }
+
+    function mostrarAvisoLinea(linea) {
+        const motivo = motivoInvalido(linea);
+        if (motivo) {
+            avisoStock.textContent = motivo;
+            avisoStock.classList.remove('hidden');
+            cajaEntradaCantidad.classList.remove('border-primary');
+            cajaEntradaCantidad.classList.add('border-error');
+        } else {
+            avisoStock.classList.add('hidden');
+            cajaEntradaCantidad.classList.remove('border-error');
+            cajaEntradaCantidad.classList.add('border-primary');
+        }
+    }
+
+    document.querySelectorAll('.producto-card').forEach(function (card) {
+        card.addEventListener('click', function () {
+            if (card.disabled) return;
+            limpiarError();
+            const productoId = parseInt(card.dataset.id, 10);
+            let linea = carrito.find(l => l.productoId === productoId);
+
+            if (!linea) {
+                const stock = parseFloat(card.dataset.stock);
+                const unidad = card.dataset.unidad;
+                const precioUnitario = tipoPrecioActual === 'mayoreo'
+                    ? parseFloat(card.dataset.precioMayoreo)
+                    : parseFloat(card.dataset.precioDetalle);
+                // Cantidad inicial segura: nunca más de lo que hay en existencia.
+                const cantidadInicial = unidad === 'unidad'
+                    ? Math.min(1, Math.floor(stock))
+                    : round2(Math.min(1, stock));
+
+                linea = {
+                    productoId: productoId,
+                    nombre: card.dataset.nombre,
+                    unidad: unidad,
+                    cantidad: cantidadInicial,
+                    precioUnitario: precioUnitario,
+                    stockDisponible: stock,
+                };
+                linea.subtotal = round2(linea.cantidad * linea.precioUnitario);
+                carrito.push(linea);
+            }
+
+            activarLinea(productoId);
+            renderizarCarrito();
+        });
+    });
+
+    // --- Filtro por categoría y buscador ---------------------------------------
+    document.querySelectorAll('.filtro-categoria').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            document.querySelectorAll('.filtro-categoria').forEach(b => {
+                b.classList.remove('bg-primary', 'text-on-primary');
+                b.classList.add('bg-surface-container-high', 'text-on-surface-variant');
+            });
+            btn.classList.add('bg-primary', 'text-on-primary');
+            btn.classList.remove('bg-surface-container-high', 'text-on-surface-variant');
+            aplicarFiltros();
+        });
+    });
+    document.getElementById('buscador-producto').addEventListener('input', aplicarFiltros);
+
+    function aplicarFiltros() {
+        const categoriaActiva = document.querySelector('.filtro-categoria.bg-primary').dataset.categoria;
+        const texto = document.getElementById('buscador-producto').value.trim().toLowerCase();
+        document.querySelectorAll('.producto-card').forEach(function (card) {
+            const coincideCategoria = !categoriaActiva || card.dataset.categoria === categoriaActiva;
+            const coincideTexto = !texto || card.dataset.nombre.toLowerCase().includes(texto);
+            card.classList.toggle('hidden', !(coincideCategoria && coincideTexto));
+        });
+    }
+
+    // --- Teclado numérico (edita la línea activa del carrito en vivo) ------------
+    function aplicarBufferALineaActiva() {
+        const linea = lineaActiva();
+        if (!linea) return;
+        let cantidad = parseFloat(bufferCantidad);
+        if (isNaN(cantidad)) cantidad = 0;
+        linea.cantidad = cantidad;
+        linea.subtotal = round2(cantidad * linea.precioUnitario);
+        mostrarAvisoLinea(linea);
+        renderizarCarrito();
+    }
+
+    document.querySelectorAll('.tecla-numerica').forEach(function (tecla) {
+        tecla.addEventListener('click', function () {
+            if (!lineaActivaId) return; // nada seleccionado: el teclado no hace nada
+            const linea = lineaActiva();
+            const valor = tecla.dataset.tecla;
+            if (valor === '.' && (bufferCantidad.includes('.') || (linea && linea.unidad === 'unidad'))) return;
+            if (bufferCantidad === '0' && valor !== '.') {
+                bufferCantidad = valor;
+            } else {
+                bufferCantidad += valor;
+            }
+            entradaCantidad.value = bufferCantidad;
+            aplicarBufferALineaActiva();
+        });
+    });
+    document.getElementById('btn-borrar').addEventListener('click', function () {
+        if (!lineaActivaId) return;
+        bufferCantidad = bufferCantidad.slice(0, -1) || '0';
+        entradaCantidad.value = bufferCantidad;
+        aplicarBufferALineaActiva();
+    });
+    entradaCantidad.addEventListener('input', function () {
+        if (!lineaActivaId) { entradaCantidad.value = '0'; return; }
+        bufferCantidad = entradaCantidad.value;
+        aplicarBufferALineaActiva();
+    });
+
+    // --- Tipo de precio (Detalle / Mayoreo) ---------------------------------------
+    function fijarTipoPrecio(tipo) {
+        tipoPrecioActual = tipo;
+        document.querySelectorAll('.tipo-precio-btn').forEach(function (btn) {
+            const activo = btn.dataset.tipo === tipo;
+            btn.classList.toggle('border-primary', activo);
+            btn.classList.toggle('text-primary', activo);
+            btn.classList.toggle('border-outline-variant', !activo);
+            btn.classList.toggle('text-secondary', !activo);
+        });
+        badgeTipoPrecio.textContent = tipo === 'mayoreo' ? 'Mayoreo' : 'Detalle';
+    }
+
+    function cambiarTipoPrecioConGuard(tipoNuevo) {
+        if (tipoNuevo === tipoPrecioActual) return;
+        if (carrito.length > 0) {
+            const ok = confirm('Cambiar el tipo de precio vaciará el carrito actual (los precios ya agregados no se recalculan). ¿Continuar?');
+            if (!ok) return false;
+            carrito.length = 0;
+            activarLinea(null);
+            renderizarCarrito();
+        }
+        fijarTipoPrecio(tipoNuevo);
+        return true;
+    }
+
+    document.querySelectorAll('.tipo-precio-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () { cambiarTipoPrecioConGuard(btn.dataset.tipo); });
+    });
+
+    selectorCliente.addEventListener('change', function (ev) {
+        const opcion = ev.target.selectedOptions[0];
+        const tipoCliente = opcion.dataset.tipo === 'mayoreo' ? 'mayoreo' : 'detalle';
+        cambiarTipoPrecioConGuard(tipoCliente);
+    });
+
+    // Estado inicial según el cliente por defecto ("Cliente General" = detalle).
+    if (selectorCliente.selectedOptions.length) {
+        fijarTipoPrecio(selectorCliente.selectedOptions[0].dataset.tipo === 'mayoreo' ? 'mayoreo' : 'detalle');
+    }
+    actualizarEstadoFacturar();
+
+    // --- Render del carrito ----------------------------------------------------
+    function renderizarCarrito() {
+        listaCarrito.innerHTML = '';
+        if (carrito.length === 0) {
+            listaCarrito.appendChild(carritoVacioMsg);
+            actualizarTotales();
+            actualizarEstadoFacturar();
+            return;
+        }
+
+        carrito.forEach(function (linea, indice) {
+            const motivo = motivoInvalido(linea);
+            const invalida = !!motivo;
+            const activa = linea.productoId === lineaActivaId;
+
+            const fila = document.createElement('div');
+            fila.className = 'flex justify-between items-center p-sm rounded-lg border transition-all group cursor-pointer ' +
+                (invalida ? 'bg-error-container/20 border-error' : (activa ? 'bg-primary-container/10 border-primary' : 'bg-surface-container-low border-transparent hover:border-outline-variant'));
+            fila.dataset.productoId = linea.productoId;
+            fila.innerHTML =
+                '<div class="flex-1">' +
+                    '<p class="font-bold">' + linea.nombre + '</p>' +
+                    '<p class="text-secondary text-label-md">' + linea.cantidad.toFixed(linea.unidad === 'unidad' ? 0 : 3) + ' ' + linea.unidad + ' x ' + formatoQ(linea.precioUnitario) + '</p>' +
+                    (invalida ? '<p class="text-error text-xs font-bold mt-1">' + motivo + '</p>' : '') +
+                '</div>' +
+                '<div class="text-right">' +
+                    '<p class="font-bold">' + formatoQ(linea.subtotal) + '</p>' +
+                    '<button type="button" data-indice="' + indice + '" class="btn-quitar-linea text-error opacity-0 group-hover:opacity-100 transition-opacity">' +
+                        '<span class="material-symbols-outlined text-sm">delete</span>' +
+                    '</button>' +
+                '</div>';
+            fila.addEventListener('click', function () { activarLinea(linea.productoId); });
+            listaCarrito.appendChild(fila);
+        });
+
+        listaCarrito.querySelectorAll('.btn-quitar-linea').forEach(function (btn) {
+            btn.addEventListener('click', function (ev) {
+                ev.stopPropagation();
+                const indice = parseInt(btn.dataset.indice, 10);
+                const eraActiva = carrito[indice] && carrito[indice].productoId === lineaActivaId;
+                carrito.splice(indice, 1);
+                if (eraActiva) activarLinea(null);
+                renderizarCarrito();
+            });
+        });
+
+        actualizarTotales();
+        actualizarEstadoFacturar();
+    }
+
+    function actualizarTotales() {
+        const subtotal = round2(carrito.reduce((acc, l) => acc + l.subtotal, 0));
+        document.getElementById('total-subtotal').textContent = formatoQ(subtotal);
+        document.getElementById('total-general').textContent = formatoQ(subtotal);
+    }
+
+    function actualizarEstadoFacturar() {
+        const hayInvalidas = carrito.some(l => motivoInvalido(l) !== null);
+        btnFacturar.disabled = carrito.length === 0 || hayInvalidas;
+        btnFacturar.classList.toggle('opacity-40', btnFacturar.disabled);
+        btnFacturar.classList.toggle('cursor-not-allowed', btnFacturar.disabled);
+    }
+
+    document.getElementById('btn-cancelar-venta').addEventListener('click', function () {
+        if (carrito.length === 0) return;
+        if (confirm('¿Vaciar el carrito actual?')) {
+            carrito.length = 0;
+            activarLinea(null);
+            renderizarCarrito();
+            limpiarError();
+        }
+    });
+
+    // --- Alerta de bajo stock (modal + sonido) -----------------------------------
+    let contextoAudio = null;
+
+    function prepararAudio() {
+        try {
+            contextoAudio = contextoAudio || new (window.AudioContext || window.webkitAudioContext)();
+            if (contextoAudio.state === 'suspended') contextoAudio.resume();
+        } catch (e) { contextoAudio = null; /* sin audio: la alerta visual igual aparece */ }
+    }
+
+    function sonarAlerta(critico) {
+        if (!contextoAudio) return;
+        // Dos pitidos cortos (tres si hay un producto en nivel crítico).
+        const pitidos = critico ? 3 : 2;
+        for (let i = 0; i < pitidos; i++) {
+            const inicio = contextoAudio.currentTime + i * 0.28;
+            const oscilador = contextoAudio.createOscillator();
+            const ganancia = contextoAudio.createGain();
+            oscilador.type = 'square';
+            oscilador.frequency.value = i % 2 === 0 ? 880 : 660;
+            ganancia.gain.setValueAtTime(0.0001, inicio);
+            ganancia.gain.exponentialRampToValueAtTime(0.25, inicio + 0.02);
+            ganancia.gain.exponentialRampToValueAtTime(0.0001, inicio + 0.22);
+            oscilador.connect(ganancia).connect(contextoAudio.destination);
+            oscilador.start(inicio);
+            oscilador.stop(inicio + 0.24);
+        }
+    }
+
+    function mostrarAlertaStock(alertas, urlRecibo) {
+        const lista = document.getElementById('alerta-stock-lista');
+        lista.innerHTML = '';
+        alertas.forEach(function (a) {
+            const li = document.createElement('li');
+            li.className = 'flex items-center justify-between p-md rounded-r-lg border-l-4 ' +
+                (a.critico ? 'bg-error-container/20 border-error' : 'bg-secondary-fixed/30 border-secondary');
+            const nombre = document.createElement('span');
+            nombre.className = 'font-bold';
+            nombre.textContent = a.nombre;
+            const detalle = document.createElement('span');
+            detalle.className = 'text-sm font-bold ' + (a.critico ? 'text-error' : 'text-secondary');
+            detalle.textContent = (a.critico ? 'Crítico' : 'Bajo') + ': quedan ' + a.stock_actual.toFixed(2) +
+                ' ' + a.unidad_venta + ' (mín. ' + a.stock_minimo.toFixed(2) + ')';
+            li.appendChild(nombre);
+            li.appendChild(detalle);
+            lista.appendChild(li);
+        });
+
+        const modal = document.getElementById('modal-alerta-stock');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        sonarAlerta(alertas.some(a => a.critico));
+
+        document.getElementById('btn-alerta-stock-ok').onclick = function () {
+            window.location.href = urlRecibo;
+        };
+    }
+
+    // --- Facturar --------------------------------------------------------------
+    document.getElementById('btn-facturar').addEventListener('click', function () {
+        limpiarError();
+        if (carrito.length === 0) {
+            mostrarError('Agrega al menos un producto antes de facturar.');
+            return;
+        }
+
+        const lineaInvalida = carrito.find(l => motivoInvalido(l) !== null);
+        if (lineaInvalida) {
+            mostrarError(lineaInvalida.nombre + ': ' + motivoInvalido(lineaInvalida));
+            return;
+        }
+        const clienteId = selectorCliente.value;
+        if (!clienteId) {
+            mostrarError('Selecciona un cliente.');
+            return;
+        }
+
+        const payload = {
+            cliente_id: parseInt(clienteId, 10),
+            tipo_precio: tipoPrecioActual,
+            metodo_pago: document.getElementById('metodo-pago').value,
+            items: carrito.map(l => ({ producto_id: l.productoId, cantidad: l.cantidad })),
+        };
+
+        const boton = this;
+        boton.disabled = true;
+        prepararAudio();  // dentro del clic: los navegadores solo permiten sonido tras un gesto del usuario
+        fetch('{{ url_for("ventas.checkout") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        })
+            .then(function (resp) { return resp.json().then(data => ({ status: resp.status, data: data })); })
+            .then(function (res) {
+                if (res.status !== 200) {
+                    mostrarError(res.data.error || 'No se pudo procesar la venta.');
+                    actualizarEstadoFacturar();
+                    return;
+                }
+                if (res.data.alertas_stock && res.data.alertas_stock.length) {
+                    mostrarAlertaStock(res.data.alertas_stock, res.data.redirect);
+                } else {
+                    window.location.href = res.data.redirect;
+                }
+            })
+            .catch(function () {
+                mostrarError('Error de conexión. Intenta de nuevo.');
+                actualizarEstadoFacturar();
+            });
+    });
+
+    // --- Nuevo cliente rápido ---------------------------------------------------
+    // (el botón no existe si el usuario no tiene permiso para crear clientes)
+    const btnNuevoCliente = document.getElementById('btn-nuevo-cliente');
+    if (btnNuevoCliente) btnNuevoCliente.addEventListener('click', function () {
+        document.getElementById('nuevo-cliente-nombre').value = '';
+        document.getElementById('nuevo-cliente-tipo').value = 'detalle';
+        document.getElementById('modal-cliente-error').classList.add('hidden');
+        document.getElementById('modal-cliente').classList.remove('hidden');
+        document.getElementById('modal-cliente').classList.add('flex');
+    });
+
+    document.getElementById('btn-guardar-cliente').addEventListener('click', function () {
+        const nombre = document.getElementById('nuevo-cliente-nombre').value.trim();
+        const tipo = document.getElementById('nuevo-cliente-tipo').value;
+        const errorEl = document.getElementById('modal-cliente-error');
+
+        if (!nombre) {
+            errorEl.textContent = 'El nombre es obligatorio.';
+            errorEl.classList.remove('hidden');
+            return;
+        }
+
+        fetch('{{ url_for("ventas.crear_cliente_api") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nombre: nombre, tipo_cliente: tipo }),
+        })
+            .then(function (resp) { return resp.json().then(data => ({ status: resp.status, data: data })); })
+            .then(function (res) {
+                if (res.status !== 200) {
+                    errorEl.textContent = res.data.error || 'No se pudo crear el cliente.';
+                    errorEl.classList.remove('hidden');
+                    return;
+                }
+                const opcion = document.createElement('option');
+                opcion.value = res.data.cliente.id;
+                opcion.dataset.tipo = res.data.cliente.tipo_cliente;
+                opcion.textContent = res.data.cliente.nombre + ' (' + res.data.cliente.tipo_cliente + ')';
+                selectorCliente.appendChild(opcion);
+                selectorCliente.value = res.data.cliente.id;
+                cambiarTipoPrecioConGuard(res.data.cliente.tipo_cliente);
+                document.getElementById('modal-cliente').classList.add('hidden');
+                document.getElementById('modal-cliente').classList.remove('flex');
+            })
+            .catch(function () {
+                errorEl.textContent = 'Error de conexión. Intenta de nuevo.';
+                errorEl.classList.remove('hidden');
+            });
+    });
+})();
+</script>
+{% endblock %}
