@@ -1,0 +1,237 @@
+{% extends "inventario/_layout.html" %}
+{% set activo = "finanzas" %}
+
+{% block titulo %}Gestión Financiera - Carnicería La Mija{% endblock %}
+{% block encabezado %}Gestión Financiera{% endblock %}
+
+{% block contenido %}
+<div class="max-w-7xl mx-auto space-y-xl">
+
+    <!-- Encabezado + filtro de rango -->
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-md">
+        <div>
+            <h3 class="font-headline-lg text-headline-lg text-on-surface">Gestión Financiera</h3>
+            <p class="text-body-md text-secondary">Control de egresos operativos y rentabilidad diaria.</p>
+        </div>
+        <div class="no-imprimir flex flex-col items-end gap-sm">
+            <div class="flex items-center gap-sm bg-surface-container-high p-xs rounded-lg border border-outline-variant">
+                <a href="{{ url_for('finanzas.dashboard', rango='hoy') }}"
+                   class="px-md py-sm rounded-md text-label-md font-bold {{ 'bg-surface-container-lowest shadow-sm' if rango == 'hoy' else 'text-secondary hover:bg-surface-container-lowest transition-all' }}">Hoy</a>
+                <a href="{{ url_for('finanzas.dashboard', rango='7dias') }}"
+                   class="px-md py-sm rounded-md text-label-md font-bold {{ 'bg-surface-container-lowest shadow-sm' if rango == '7dias' else 'text-secondary hover:bg-surface-container-lowest transition-all' }}">Últimos 7 días</a>
+                <button type="button" id="btn-personalizado"
+                        class="px-md py-sm rounded-md text-label-md font-bold flex items-center gap-xs {{ 'bg-surface-container-lowest shadow-sm' if rango == 'personalizado' else 'text-secondary hover:bg-surface-container-lowest transition-all' }}">
+                    Personalizado
+                    <span class="material-symbols-outlined text-sm">calendar_today</span>
+                </button>
+            </div>
+            <form id="form-personalizado" method="get" action="{{ url_for('finanzas.dashboard') }}"
+                  class="flex items-center gap-sm {{ '' if rango == 'personalizado' else 'hidden' }}">
+                <input type="hidden" name="rango" value="personalizado">
+                <input type="date" name="desde" value="{{ fecha_desde }}" max="{{ fecha_hoy }}" class="border-2 border-outline-variant rounded-lg p-sm text-sm bg-surface">
+                <span class="text-secondary text-sm">a</span>
+                <input type="date" name="hasta" value="{{ fecha_hasta }}" max="{{ fecha_hoy }}" class="border-2 border-outline-variant rounded-lg p-sm text-sm bg-surface">
+                <button type="submit" class="px-md py-sm bg-primary text-on-primary rounded-lg text-sm font-bold">Aplicar</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Bento Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-lg">
+
+        <!-- Columna izquierda: registro de egresos -->
+        <div class="lg:col-span-5 flex flex-col gap-lg">
+            {% if puede('finanzas.crear') %}
+            <div class="no-imprimir bg-surface-container-lowest border border-outline-variant rounded-xl p-xl shadow-sm">
+                <div class="flex items-center gap-sm mb-lg border-b border-outline-variant pb-md">
+                    <span class="material-symbols-outlined text-primary">add_card</span>
+                    <h4 class="font-headline-md text-headline-md">Egresos Operativos</h4>
+                </div>
+                <form method="post" action="{{ url_for('finanzas.registrar_egreso') }}" enctype="multipart/form-data" class="space-y-md">
+                    <div class="grid grid-cols-2 gap-md">
+                        <div class="flex flex-col gap-xs">
+                            <label class="text-label-md font-bold text-secondary" for="fecha">Fecha</label>
+                            <input class="border-2 border-outline-variant rounded-lg p-sm focus:border-primary focus:ring-0 transition-all bg-surface"
+                                   type="date" id="fecha" name="fecha" value="{{ fecha_hoy }}" max="{{ fecha_hoy }}" required>
+                        </div>
+                        <div class="flex flex-col gap-xs">
+                            <label class="text-label-md font-bold text-secondary" for="monto">Monto (Q)</label>
+                            <div class="relative">
+                                <span class="absolute left-sm top-1/2 -translate-y-1/2 text-secondary">Q</span>
+                                <input class="w-full border-2 border-outline-variant rounded-lg p-sm pl-xl focus:border-primary focus:ring-0 transition-all bg-surface"
+                                       placeholder="0.00" type="number" step="0.01" min="0.01" id="monto" name="monto" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-xs">
+                        <label class="text-label-md font-bold text-secondary" for="categoria">Categoría</label>
+                        <select class="border-2 border-outline-variant rounded-lg p-sm focus:border-primary focus:ring-0 transition-all bg-surface" id="categoria" name="categoria" required>
+                            {% for cat in categorias %}
+                            <option value="{{ cat }}">{{ cat }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="flex flex-col gap-xs">
+                        <label class="text-label-md font-bold text-secondary" for="descripcion">Descripción</label>
+                        <input class="border-2 border-outline-variant rounded-lg p-sm focus:border-primary focus:ring-0 transition-all bg-surface"
+                               placeholder="Ej: Pago Distribuidora Central" type="text" id="descripcion" name="descripcion" required>
+                    </div>
+                    <div class="flex flex-col gap-xs">
+                        <label class="text-label-md font-bold text-secondary">Comprobante (Opcional)</label>
+                        <label for="comprobante" class="border-2 border-dashed border-outline-variant rounded-lg p-lg flex flex-col items-center justify-center gap-xs cursor-pointer hover:bg-surface-container transition-all group">
+                            <span id="comprobante-nombre" class="text-label-md text-secondary text-center group-hover:text-primary">
+                                <span class="material-symbols-outlined text-primary group-hover:scale-110 transition-transform block mx-auto">cloud_upload</span>
+                                Subir Imagen o PDF del Recibo
+                            </span>
+                            <input class="hidden" type="file" id="comprobante" name="comprobante" accept="image/png,image/jpeg,application/pdf">
+                        </label>
+                    </div>
+                    <button class="w-full bg-primary-container text-on-primary-container py-md rounded-lg font-bold text-body-lg hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-sm mt-md shadow-md" type="submit">
+                        <span class="material-symbols-outlined">save</span>
+                        Guardar Gasto
+                    </button>
+                </form>
+            </div>
+            {% endif %}
+
+            <!-- Gastos recientes -->
+            <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden shadow-sm">
+                <div class="p-md bg-surface-container flex justify-between items-center border-b border-outline-variant">
+                    <h5 class="font-label-xl text-label-xl font-bold">Gastos Recientes</h5>
+                    <a href="{{ url_for('finanzas.listado_egresos') }}" class="text-primary text-label-md font-bold hover:underline">Ver Todo</a>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left">
+                        <thead class="bg-surface-container-high border-b border-outline-variant">
+                            <tr>
+                                <th class="p-md text-label-md font-bold text-secondary">Detalle</th>
+                                <th class="p-md text-label-md font-bold text-secondary text-right">Monto</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-outline-variant">
+                            {% for g in gastos_recientes %}
+                            <tr class="hover:bg-surface-container transition-colors">
+                                <td class="p-md">
+                                    <p class="font-label-md font-bold">{{ g.descripcion }}</p>
+                                    <p class="text-xs text-secondary">{{ g.fecha.strftime('%d %b %Y') }} • {{ g.categoria }}</p>
+                                </td>
+                                <td class="p-md text-right font-bold text-primary">Q{{ '%.2f'|format(g.monto) }}</td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td class="p-md text-secondary text-center" colspan="2">Aún no hay gastos registrados.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Columna derecha: rentabilidad y cuadre -->
+        <div class="lg:col-span-7 flex flex-col gap-lg">
+            <!-- KPIs -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-md">
+                <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-md shadow-sm relative overflow-hidden">
+                    <div class="absolute right-0 top-0 w-24 h-24 bg-tertiary opacity-10 rounded-full -mr-12 -mt-12"></div>
+                    <span class="material-symbols-outlined text-tertiary mb-xs">trending_up</span>
+                    <h6 class="text-label-md font-bold text-secondary">Ventas Totales</h6>
+                    <p class="font-data-display text-[32px] text-tertiary">Q{{ '%.2f'|format(resumen.ventas_totales) }}</p>
+                </div>
+                <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-md shadow-sm relative overflow-hidden">
+                    <div class="absolute right-0 top-0 w-24 h-24 bg-primary-container opacity-10 rounded-full -mr-12 -mt-12"></div>
+                    <span class="material-symbols-outlined text-primary mb-xs">trending_down</span>
+                    <h6 class="text-label-md font-bold text-secondary">Egresos Totales</h6>
+                    <p class="font-data-display text-[32px] text-primary">Q{{ '%.2f'|format(resumen.egresos_totales) }}</p>
+                </div>
+                <div class="border rounded-xl p-md shadow-lg relative overflow-hidden {{ 'bg-primary-container border-primary-container' if resumen.rentabilidad_neta >= 0 else 'bg-error border-error' }}">
+                    <div class="absolute right-0 top-0 w-24 h-24 bg-white opacity-20 rounded-full -mr-12 -mt-12"></div>
+                    <span class="material-symbols-outlined text-white mb-xs">account_balance_wallet</span>
+                    <h6 class="text-label-md font-bold text-white/80">Rentabilidad Neta</h6>
+                    <p class="font-data-display text-[32px] text-white">Q{{ '%.2f'|format(resumen.rentabilidad_neta) }}</p>
+                    <p class="text-xs text-white/80 mt-xs">{{ 'Balance Positivo' if resumen.rentabilidad_neta >= 0 else 'Balance Negativo' }}</p>
+                </div>
+            </div>
+
+            <!-- Cuadre de Ventas -->
+            <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden shadow-sm flex-1 flex flex-col">
+                <div class="p-lg bg-surface flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-outline-variant gap-md">
+                    <div>
+                        <h4 class="font-headline-md text-headline-md">Cuadre de Ventas</h4>
+                        <p class="text-label-md text-secondary">Resumen de rentabilidad diaria</p>
+                    </div>
+                    <a class="no-imprimir flex items-center gap-2 px-4 py-2 bg-surface border border-outline-variant rounded-lg hover:bg-surface-container font-label-md text-sm"
+                       href="{{ url_for('finanzas.exportar_cuadre_excel', rango=rango, desde=fecha_desde, hasta=fecha_hasta) }}">
+                        <span class="material-symbols-outlined text-sm">download</span>
+                        Excel
+                    </a>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead class="bg-surface-container-high border-b border-outline-variant sticky top-0">
+                            <tr>
+                                <th class="p-lg text-label-md font-bold text-secondary">Fecha</th>
+                                <th class="p-lg text-label-md font-bold text-secondary text-right">Venta Bruta</th>
+                                <th class="p-lg text-label-md font-bold text-secondary text-right">Gasto Op.</th>
+                                <th class="p-lg text-label-md font-bold text-secondary text-right">Balance</th>
+                                <th class="p-lg text-label-md font-bold text-secondary text-center">Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-outline-variant">
+                            {% for dia in cuadre %}
+                            <tr class="hover:bg-surface-container transition-colors group">
+                                <td class="p-lg font-bold">{{ dia.fecha.strftime('%d %b, %Y') }}</td>
+                                <td class="p-lg text-right font-data-display text-[20px] text-on-surface">Q{{ '%.2f'|format(dia.venta_bruta) }}</td>
+                                <td class="p-lg text-right font-data-display text-[20px] text-primary">Q{{ '%.2f'|format(dia.gasto_operativo) }}</td>
+                                <td class="p-lg text-right font-data-display text-[20px] {{ 'text-tertiary' if dia.balance >= 0 else 'text-error' }}">Q{{ '%.2f'|format(dia.balance) }}</td>
+                                <td class="p-lg text-center">
+                                    {% if dia.balance >= 0 %}
+                                    <span class="bg-tertiary-container/10 text-tertiary-container px-md py-xs rounded-full text-xs font-black uppercase tracking-wider inline-flex items-center justify-center gap-xs">
+                                        <span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+                                        Rentable
+                                    </span>
+                                    {% else %}
+                                    <span class="bg-error-container/20 text-error px-md py-xs rounded-full text-xs font-black uppercase tracking-wider inline-flex items-center justify-center gap-xs">
+                                        <span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">warning</span>
+                                        Pérdida
+                                    </span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td class="p-lg text-secondary text-center" colspan="5">Sin datos en este rango de fechas.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function () {
+        const btnPersonalizado = document.getElementById('btn-personalizado');
+        const formPersonalizado = document.getElementById('form-personalizado');
+        btnPersonalizado.addEventListener('click', function () {
+            formPersonalizado.classList.toggle('hidden');
+        });
+
+        // (el formulario de gastos no existe si el usuario no puede registrar gastos)
+        const inputComprobante = document.getElementById('comprobante');
+        const nombreComprobante = document.getElementById('comprobante-nombre');
+        if (inputComprobante && nombreComprobante) {
+            const textoOriginal = nombreComprobante.innerHTML;
+            inputComprobante.addEventListener('change', function () {
+                if (inputComprobante.files[0]) {
+                    nombreComprobante.textContent = inputComprobante.files[0].name;
+                } else {
+                    nombreComprobante.innerHTML = textoOriginal;
+                }
+            });
+        }
+    })();
+</script>
+{% endblock %}
