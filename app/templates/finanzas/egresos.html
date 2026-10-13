@@ -1,0 +1,103 @@
+{% extends "inventario/_layout.html" %}
+{% set activo = "finanzas" %}
+
+{% block titulo %}Gastos Operativos - Carnicería La Mija{% endblock %}
+{% block encabezado %}Gastos Operativos{% endblock %}
+
+{% block contenido %}
+<div class="no-imprimir mb-md flex items-center justify-between">
+    <a href="{{ url_for('finanzas.dashboard') }}" class="inline-flex items-center gap-xs text-secondary hover:text-primary font-label-md text-sm">
+        <span class="material-symbols-outlined text-sm">arrow_back</span>
+        Volver a Finanzas
+    </a>
+    <a href="{{ url_for('finanzas.exportar_egresos_excel') }}"
+       class="flex items-center gap-2 px-4 py-2 bg-surface border border-outline-variant rounded-lg hover:bg-surface-container font-label-md text-sm">
+        <span class="material-symbols-outlined text-sm">download</span>
+        Excel
+    </a>
+</div>
+
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden shadow-sm">
+    <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+            <thead class="bg-surface-container-high border-b border-outline-variant">
+                <tr>
+                    <th class="px-lg py-4 font-label-md text-secondary font-semibold whitespace-nowrap">Fecha</th>
+                    <th class="px-lg py-4 font-label-md text-secondary font-semibold">Descripción</th>
+                    <th class="px-lg py-4 font-label-md text-secondary font-semibold">Categoría</th>
+                    <th class="px-lg py-4 font-label-md text-secondary font-semibold text-right">Monto</th>
+                    <th class="px-lg py-4 font-label-md text-secondary font-semibold text-center no-imprimir">Comprobante</th>
+                    <th class="px-lg py-4 font-label-md text-secondary font-semibold">Registrado por</th>
+                    <th class="px-lg py-4 font-label-md text-secondary font-semibold text-center no-imprimir">Acciones</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-outline-variant font-body-md">
+                {% for g in registros %}
+                <tr class="hover:bg-surface-container transition-colors h-16">
+                    <td class="px-lg py-3 whitespace-nowrap">{{ g.fecha.strftime('%d %b, %Y') }}</td>
+                    <td class="px-lg py-3 font-bold">{{ g.descripcion }}</td>
+                    <td class="px-lg py-3">
+                        <span class="px-sm py-1 bg-surface-variant rounded text-xs font-bold">{{ g.categoria }}</span>
+                    </td>
+                    <td class="px-lg py-3 text-right font-bold text-primary">Q{{ '%.2f'|format(g.monto) }}</td>
+                    <td class="px-lg py-3 text-center no-imprimir">
+                        {% if g.comprobante_archivo %}
+                        <a href="{{ url_for('static', filename='uploads/egresos/' + g.comprobante_archivo) }}" target="_blank" class="text-primary hover:underline inline-flex items-center gap-xs text-sm">
+                            <span class="material-symbols-outlined text-sm">receipt_long</span>
+                            Ver
+                        </a>
+                        {% else %}
+                        <span class="text-secondary text-sm">—</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-lg py-3 text-secondary">{{ g.registrado_por or "—" }}</td>
+                    <td class="px-lg py-3 text-center no-imprimir">
+                        {% if puede('finanzas.eliminar') %}
+                        <form method="post" action="{{ url_for('finanzas.eliminar_egreso', egreso_id=g.id) }}" class="form-eliminar-egreso" data-descripcion="{{ g.descripcion }}">
+                            <button type="submit" title="Eliminar" class="material-symbols-outlined p-1.5 text-secondary hover:bg-error-container hover:text-error rounded transition-all">delete</button>
+                        </form>
+                        {% else %}
+                        <span class="text-secondary text-sm">—</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td class="px-lg py-8 text-secondary text-center" colspan="7">Aún no hay gastos registrados.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="no-imprimir bg-surface-container p-4 border-t border-outline-variant flex items-center justify-between">
+        <span class="text-sm text-secondary font-label-md">
+            {% if total_registros > 0 %}
+            Mostrando {{ (pagina - 1) * por_pagina + 1 }} - {{ [(pagina * por_pagina), total_registros]|min }} de {{ total_registros }} registros
+            {% else %}
+            Sin registros
+            {% endif %}
+        </span>
+        <div class="flex items-center gap-2">
+            <a class="p-2 border border-outline-variant rounded bg-surface hover:bg-surface-variant text-secondary {{ 'opacity-50 pointer-events-none' if pagina <= 1 else '' }}"
+               href="{{ url_for('finanzas.listado_egresos', pagina=pagina-1) }}">
+                <span class="material-symbols-outlined text-sm">chevron_left</span>
+            </a>
+            <span class="px-3 py-1 bg-primary text-on-primary rounded font-label-md">{{ pagina }} / {{ total_paginas }}</span>
+            <a class="p-2 border border-outline-variant rounded bg-surface hover:bg-surface-variant text-secondary {{ 'opacity-50 pointer-events-none' if pagina >= total_paginas else '' }}"
+               href="{{ url_for('finanzas.listado_egresos', pagina=pagina+1) }}">
+                <span class="material-symbols-outlined text-sm">chevron_right</span>
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.querySelectorAll('.form-eliminar-egreso').forEach(function (frm) {
+        frm.addEventListener('submit', function (ev) {
+            const ok = confirm('¿Eliminar el gasto "' + frm.dataset.descripcion + '"?');
+            if (!ok) ev.preventDefault();
+        });
+    });
+</script>
+{% endblock %}
