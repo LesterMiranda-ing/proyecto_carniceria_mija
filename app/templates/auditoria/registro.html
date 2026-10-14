@@ -1,0 +1,138 @@
+{% extends "inventario/_layout.html" %}
+{% set activo = "auditoria" %}
+
+{% block titulo %}Auditoría - Carnicería La Mija{% endblock %}
+{% block encabezado %}Auditoría{% endblock %}
+
+{% block contenido %}
+<form method="get" action="{{ url_for('auditoria.registro') }}"
+      class="no-imprimir mb-lg bg-surface-container-low p-md rounded-xl border border-outline-variant space-y-md">
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-md">
+        <div class="flex flex-col gap-xs">
+            <label class="font-label-md text-secondary" for="f-desde">Desde</label>
+            <input id="f-desde" type="date" name="desde" value="{{ filtros.desde or '' }}"
+                   class="h-11 px-md border-2 border-outline-variant rounded-lg bg-surface focus:border-primary focus:ring-0 text-sm">
+        </div>
+        <div class="flex flex-col gap-xs">
+            <label class="font-label-md text-secondary" for="f-hasta">Hasta</label>
+            <input id="f-hasta" type="date" name="hasta" value="{{ filtros.hasta or '' }}"
+                   class="h-11 px-md border-2 border-outline-variant rounded-lg bg-surface focus:border-primary focus:ring-0 text-sm">
+        </div>
+        <div class="flex flex-col gap-xs">
+            <label class="font-label-md text-secondary" for="f-usuario">Usuario</label>
+            <select id="f-usuario" name="usuario_id"
+                    class="h-11 px-md border-2 border-outline-variant rounded-lg bg-surface focus:border-primary focus:ring-0 text-sm">
+                <option value="">Todos</option>
+                {% for u in usuarios %}
+                <option value="{{ u.id }}" {{ 'selected' if filtros.usuario_id == u.id else '' }}>{{ u.nombre }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="flex flex-col gap-xs">
+            <label class="font-label-md text-secondary" for="f-accion">Acción</label>
+            <select id="f-accion" name="accion"
+                    class="h-11 px-md border-2 border-outline-variant rounded-lg bg-surface focus:border-primary focus:ring-0 text-sm">
+                <option value="">Todas</option>
+                {% for codigo, etiqueta in acciones.items() %}
+                <option value="{{ codigo }}" {{ 'selected' if filtros.accion == codigo else '' }}>{{ etiqueta }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="flex flex-col gap-xs">
+            <label class="font-label-md text-secondary" for="f-q">Buscar</label>
+            <input id="f-q" type="text" name="q" value="{{ filtros.q or '' }}" placeholder="Texto o nombre..."
+                   class="h-11 px-md border-2 border-outline-variant rounded-lg bg-surface focus:border-primary focus:ring-0 text-sm">
+        </div>
+    </div>
+    <div class="flex flex-wrap items-center justify-between gap-md">
+        <label class="inline-flex items-center gap-sm text-sm font-bold cursor-pointer">
+            <input type="checkbox" name="sensibles" value="1" {{ 'checked' if filtros.solo_sensibles else '' }}
+                   class="rounded border-outline-variant text-primary focus:ring-0">
+            Solo acciones sensibles (borrados, accesos fallidos, seguridad)
+        </label>
+        <div class="flex items-center gap-sm">
+            <a href="{{ url_for('auditoria.registro') }}" class="px-4 py-2 border border-outline-variant rounded-lg hover:bg-surface-container font-label-md text-sm">Limpiar</a>
+            <a href="{{ url_for('auditoria.exportar_excel', **parametros) }}"
+               class="flex items-center gap-2 px-4 py-2 bg-surface border border-outline-variant rounded-lg hover:bg-surface-container font-label-md text-sm">
+                <span class="material-symbols-outlined text-sm">download</span>
+                Excel
+            </a>
+            <button type="submit" class="px-6 py-2 bg-primary text-on-primary rounded-lg hover:opacity-90 font-label-md text-sm font-bold">Filtrar</button>
+        </div>
+    </div>
+</form>
+
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden shadow-sm">
+    <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+            <thead class="bg-surface-container-low border-b border-outline-variant">
+                <tr>
+                    <th class="px-md py-4 font-label-md text-secondary font-semibold whitespace-nowrap">Fecha y hora</th>
+                    <th class="px-md py-4 font-label-md text-secondary font-semibold">Usuario</th>
+                    <th class="px-md py-4 font-label-md text-secondary font-semibold">Acción</th>
+                    <th class="px-md py-4 font-label-md text-secondary font-semibold">Descripción</th>
+                    <th class="px-md py-4 font-label-md text-secondary font-semibold">IP</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-outline-variant font-body-md">
+                {% for r in registros %}
+                <tr class="hover:bg-surface-container transition-colors align-top">
+                    <td class="px-md py-3 whitespace-nowrap text-sm">{{ r.creado_en.strftime('%d/%m/%Y %H:%M:%S') }}</td>
+                    <td class="px-md py-3 font-medium">{{ r.usuario_nombre or '— (sin sesión)' }}</td>
+                    <td class="px-md py-3">
+                        <span class="inline-flex px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap
+                            {{ 'bg-error-container text-on-error-container' if r.accion in sensibles else 'bg-secondary-container text-on-secondary-container' }}">
+                            {{ acciones.get(r.accion, r.accion) }}
+                        </span>
+                    </td>
+                    <td class="px-md py-3">
+                        <div>{{ r.descripcion }}</div>
+                        {% if r.detalle %}
+                        <details class="mt-xs text-sm">
+                            <summary class="cursor-pointer text-primary font-bold">Ver detalle</summary>
+                            <ul class="mt-xs space-y-xs text-secondary">
+                                {% if r.detalle.cambios %}
+                                {% for campo, c in r.detalle.cambios.items() %}
+                                <li><strong>{{ campo }}</strong>: {{ c.antes if c.antes is not none else '—' }} → {{ c.despues if c.despues is not none else '—' }}</li>
+                                {% endfor %}
+                                {% endif %}
+                                {% for clave, valor in r.detalle.items() if clave != 'cambios' %}
+                                <li><strong>{{ clave }}</strong>: {{ valor if valor is string or valor is number else valor|tojson }}</li>
+                                {% endfor %}
+                            </ul>
+                        </details>
+                        {% endif %}
+                    </td>
+                    <td class="px-md py-3 text-sm text-secondary whitespace-nowrap">{{ r.ip or '—' }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td class="px-md py-8 text-secondary text-center" colspan="5">No hay registros con esos filtros.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="no-imprimir bg-surface-container p-4 border-t border-outline-variant flex items-center justify-between">
+        <span class="text-sm text-secondary font-label-md">
+            {% if total > 0 %}
+            Mostrando {{ (pagina - 1) * por_pagina + 1 }} - {{ [(pagina * por_pagina), total]|min }} de {{ total }} registros
+            {% else %}
+            Sin registros
+            {% endif %}
+        </span>
+        <div class="flex items-center gap-2">
+            <a class="p-2 border border-outline-variant rounded bg-surface hover:bg-surface-variant text-secondary {{ 'opacity-50 pointer-events-none' if pagina <= 1 else '' }}"
+               href="{{ url_for('auditoria.registro', pagina=pagina-1, **parametros) }}">
+                <span class="material-symbols-outlined text-sm">chevron_left</span>
+            </a>
+            <span class="px-3 py-1 bg-primary text-on-primary rounded font-label-md">{{ pagina }} / {{ total_paginas }}</span>
+            <a class="p-2 border border-outline-variant rounded bg-surface hover:bg-surface-variant text-secondary {{ 'opacity-50 pointer-events-none' if pagina >= total_paginas else '' }}"
+               href="{{ url_for('auditoria.registro', pagina=pagina+1, **parametros) }}">
+                <span class="material-symbols-outlined text-sm">chevron_right</span>
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
