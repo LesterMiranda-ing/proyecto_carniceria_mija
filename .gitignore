@@ -19,3 +19,4 @@ __pycache__/
 # Bases de datos y archivos locales
 instance/
 *.db
+pruebas/
