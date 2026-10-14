@@ -1,0 +1,209 @@
+{% extends "inventario/_layout.html" %}
+{% set activo = "dashboard" %}
+
+{% block titulo %}Dashboard General - Carnicería La Mija{% endblock %}
+{% block encabezado %}Dashboard General{% endblock %}
+
+{% block contenido %}
+<div class="space-y-lg">
+
+    {% set hay_accesos = puede('pos.crear') or puede('entrada_canal.crear') or puede('finanzas.crear') %}
+
+    <!-- Accesos rápidos: solo los que el usuario puede realmente usar -->
+    {% if hay_accesos %}
+    <section class="no-imprimir grid grid-cols-1 sm:grid-cols-3 gap-md">
+        {% if puede('pos.crear') %}
+        <a href="{{ url_for('ventas.pos') }}"
+           class="flex items-center justify-center gap-sm bg-primary text-on-primary py-lg px-xl rounded-xl font-bold shadow-md hover:opacity-90 transition-all active:scale-95 min-h-[64px]">
+            <span class="material-symbols-outlined">add_shopping_cart</span>
+            <span class="text-label-xl">Nueva Venta</span>
+        </a>
+        {% endif %}
+        {% if puede('entrada_canal.crear') %}
+        <a href="{{ url_for('inventario.entrada_canal') }}"
+           class="flex items-center justify-center gap-sm bg-tertiary text-on-tertiary py-lg px-xl rounded-xl font-bold shadow-md hover:opacity-90 transition-all active:scale-95 min-h-[64px]">
+            <span class="material-symbols-outlined">conveyor_belt</span>
+            <span class="text-label-xl">Ingreso Canal</span>
+        </a>
+        {% endif %}
+        {% if puede('finanzas.crear') %}
+        <a href="{{ url_for('finanzas.dashboard') }}"
+           class="flex items-center justify-center gap-sm bg-secondary text-on-secondary py-lg px-xl rounded-xl font-bold shadow-md hover:opacity-90 transition-all active:scale-95 min-h-[64px]">
+            <span class="material-symbols-outlined">payments</span>
+            <span class="text-label-xl">Registrar Gasto</span>
+        </a>
+        {% endif %}
+    </section>
+    {% endif %}
+
+    {% if resumen is none and flujo is none and alertas is none and movimientos is none and not hay_accesos %}
+    <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-xl text-center text-secondary">
+        <span class="material-symbols-outlined text-4xl">widgets</span>
+        <p class="font-body-md mt-sm">Tu rol no tiene bloques de información habilitados en el Dashboard.</p>
+    </div>
+    {% endif %}
+
+    <!-- Resumen del día (requiere Finanzas) -->
+    {% if resumen is not none %}
+    <section class="grid grid-cols-1 md:grid-cols-3 gap-lg">
+        <div class="bg-surface-container-lowest border border-outline-variant p-lg rounded-xl flex flex-col justify-between">
+            <div class="flex justify-between items-start">
+                <div>
+                    <p class="text-secondary font-label-md uppercase tracking-wider">Ventas Diarias</p>
+                    <h3 class="font-data-display text-data-display text-primary">Q{{ '%.2f'|format(resumen.ventas_hoy) }}</h3>
+                </div>
+                {% if resumen.variacion_ventas is not none %}
+                <span class="px-sm py-xs rounded-full text-xs font-bold flex items-center gap-1 {{ 'bg-tertiary-fixed text-on-tertiary-fixed-variant' if resumen.variacion_ventas >= 0 else 'bg-error-container text-on-error-container' }}">
+                    <span class="material-symbols-outlined text-sm">{{ 'trending_up' if resumen.variacion_ventas >= 0 else 'trending_down' }}</span>
+                    {{ '%+.0f'|format(resumen.variacion_ventas) }}%
+                </span>
+                {% endif %}
+            </div>
+            <p class="text-secondary font-label-md mt-md">Última venta: {{ resumen.ultima_venta_texto }}</p>
+        </div>
+
+        <div class="bg-surface-container-lowest border border-outline-variant p-lg rounded-xl flex flex-col justify-between">
+            <div class="flex justify-between items-start">
+                <div>
+                    <p class="text-secondary font-label-md uppercase tracking-wider">Gastos Operativos</p>
+                    <h3 class="font-data-display text-data-display text-on-surface">Q{{ '%.2f'|format(resumen.gastos_hoy) }}</h3>
+                </div>
+                {% if resumen.variacion_gastos is not none %}
+                <span class="px-sm py-xs rounded-full text-xs font-bold flex items-center gap-1 {{ 'bg-error-container text-on-error-container' if resumen.variacion_gastos >= 0 else 'bg-tertiary-fixed text-on-tertiary-fixed-variant' }}">
+                    <span class="material-symbols-outlined text-sm">{{ 'trending_up' if resumen.variacion_gastos >= 0 else 'trending_down' }}</span>
+                    {{ '%+.0f'|format(resumen.variacion_gastos) }}%
+                </span>
+                {% endif %}
+            </div>
+            <p class="text-secondary font-label-md mt-md">Comparado con ayer</p>
+        </div>
+
+        <div class="p-lg rounded-xl flex flex-col justify-between {{ 'bg-primary-container text-on-primary-container' if resumen.utilidad_neta >= 0 else 'bg-error text-on-error' }}">
+            <div class="flex justify-between items-start">
+                <div>
+                    <p class="opacity-80 font-label-md uppercase tracking-wider">Utilidad Neta</p>
+                    <h3 class="font-data-display text-data-display text-white">Q{{ '%.2f'|format(resumen.utilidad_neta) }}</h3>
+                </div>
+                <div class="h-12 w-12 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                    <span class="material-symbols-outlined text-white">savings</span>
+                </div>
+            </div>
+            <p class="text-white font-label-md mt-md">
+                {% if resumen.ventas_hoy > 0 %}Margen de ganancia: {{ resumen.margen_pct }}%{% else %}Sin ventas hoy todavía{% endif %}
+            </p>
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- Flujo de caja (requiere Finanzas) + Alertas de stock (requiere Inventario) -->
+    {% if flujo is not none or alertas is not none %}
+    <section class="grid grid-cols-1 xl:grid-cols-5 gap-lg">
+        {% if flujo is not none %}
+        <!-- Flujo de Caja -->
+        <div class="{{ 'xl:col-span-3' if alertas is not none else 'xl:col-span-5' }} bg-surface-container-lowest border border-outline-variant p-lg rounded-xl">
+            <div class="flex justify-between items-center mb-xl">
+                <h4 class="font-headline-md text-headline-md text-on-surface">Flujo de Caja (7 días)</h4>
+                <div class="flex gap-md">
+                    <div class="flex items-center gap-xs">
+                        <div class="w-3 h-3 rounded-full bg-primary"></div>
+                        <span class="text-xs font-label-md">Ingresos</span>
+                    </div>
+                    <div class="flex items-center gap-xs">
+                        <div class="w-3 h-3 rounded-full bg-secondary"></div>
+                        <span class="text-xs font-label-md">Egresos</span>
+                    </div>
+                </div>
+            </div>
+            <div class="h-64 flex items-end gap-md px-sm">
+                {% for dia in flujo %}
+                <div class="flex-grow flex flex-col items-center gap-sm" title="{{ dia.fecha.strftime('%d %b') }} — Ingresos Q{{ '%.2f'|format(dia.ingresos) }} / Egresos Q{{ '%.2f'|format(dia.egresos) }}">
+                    <div class="w-full flex items-end gap-1 h-48">
+                        <div class="bg-primary flex-1 rounded-t-sm" style="height: {{ dia.ingresos_pct }}%; min-height: {{ '2px' if dia.ingresos > 0 else '0' }};"></div>
+                        <div class="bg-secondary flex-1 rounded-t-sm" style="height: {{ dia.egresos_pct }}%; min-height: {{ '2px' if dia.egresos > 0 else '0' }};"></div>
+                    </div>
+                    <span class="text-xs font-label-md {{ 'text-primary font-bold' if dia.es_hoy else 'text-secondary' }}">{{ dia.etiqueta }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if alertas is not none %}
+        <!-- Alertas de Stock -->
+        <div class="{{ 'xl:col-span-2' if flujo is not none else 'xl:col-span-5' }} bg-surface-container-lowest border border-outline-variant p-lg rounded-xl flex flex-col">
+            <div class="flex justify-between items-center mb-md">
+                <h4 class="font-headline-md text-headline-md text-on-surface">Alertas de Stock</h4>
+                {% if alertas %}<span class="material-symbols-outlined text-error">warning</span>{% endif %}
+            </div>
+            <div class="space-y-sm flex-grow">
+                {% for a in alertas %}
+                <a href="{{ url_for('inventario.catalogo_productos', q=a.nombre) }}"
+                   class="flex items-center justify-between p-md rounded-r-lg border-l-4 transition-colors hover:brightness-95
+                       {{ 'bg-error-container/20 border-error' if a.critico else 'bg-secondary-fixed/30 border-secondary' }}">
+                    <div>
+                        <h5 class="font-label-xl text-on-surface">{{ a.nombre }}</h5>
+                        <p class="font-label-md font-bold {{ 'text-error' if a.critico else 'text-on-secondary-fixed-variant' }}">
+                            {{ 'Crítico' if a.critico else 'Bajo' }}: {{ '%.1f'|format(a.stock_actual) }} {{ a.unidad_venta }}
+                        </p>
+                    </div>
+                    <span class="bg-primary text-white p-xs rounded-lg">
+                        <span class="material-symbols-outlined">add</span>
+                    </span>
+                </a>
+                {% else %}
+                <div class="flex flex-col items-center justify-center gap-xs text-center py-lg text-secondary">
+                    <span class="material-symbols-outlined text-3xl text-tertiary">check_circle</span>
+                    <p class="font-label-md">Todo el stock está en niveles saludables.</p>
+                </div>
+                {% endfor %}
+            </div>
+            <a href="{{ url_for('inventario.catalogo_productos') }}"
+               class="mt-lg w-full py-sm border border-outline text-primary font-bold rounded-lg hover:bg-surface-variant transition-colors text-center">
+                Ver Inventario Completo
+            </a>
+        </div>
+        {% endif %}
+    </section>
+    {% endif %}
+
+    <!-- Últimos Movimientos (requiere Punto de Venta) -->
+    {% if movimientos is not none %}
+    <section class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden shadow-sm">
+        <div class="p-lg border-b border-outline-variant flex justify-between items-center">
+            <h4 class="font-headline-md text-headline-md text-on-surface">Últimos Movimientos</h4>
+            <a href="{{ url_for('ventas.historial') }}" class="text-primary font-label-md font-bold hover:underline">Ver Historial</a>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left">
+                <thead>
+                    <tr class="bg-surface-container-low border-b border-outline-variant text-secondary font-label-md">
+                        <th class="px-lg py-md">ID Venta</th>
+                        <th class="px-lg py-md">Corte / Ítem</th>
+                        <th class="px-lg py-md text-right">Cantidad</th>
+                        <th class="px-lg py-md text-right">Total</th>
+                        <th class="px-lg py-md text-center">Estado</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-outline-variant">
+                    {% for m in movimientos %}
+                    <tr class="hover:bg-surface-variant transition-colors">
+                        <td class="px-lg py-lg font-label-md text-on-surface">#{{ m.numero_venta }}</td>
+                        <td class="px-lg py-lg font-bold text-on-surface">{{ m.nombre_producto }}</td>
+                        <td class="px-lg py-lg text-right font-label-md">{{ '%.3f'|format(m.cantidad) if m.unidad_venta == 'lb' else m.cantidad|int }} {{ m.unidad_venta|upper }}</td>
+                        <td class="px-lg py-lg text-right font-bold text-primary">Q{{ '%.2f'|format(m.subtotal_linea) }}</td>
+                        <td class="px-lg py-lg text-center">
+                            <span class="bg-tertiary-fixed text-on-tertiary-fixed-variant px-md py-1 rounded-full text-xs font-bold uppercase">{{ m.estado }}</span>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td class="px-lg py-8 text-secondary text-center" colspan="5">Aún no hay ventas registradas.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+    {% endif %}
+</div>
+{% endblock %}
