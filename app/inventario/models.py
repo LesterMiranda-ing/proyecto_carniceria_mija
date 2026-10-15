@@ -134,16 +134,14 @@ ALTER TABLE productos ADD COLUMN IF NOT EXISTS ultima_alerta_stock TIMESTAMP;
 ALTER TABLE productos ADD COLUMN IF NOT EXISTS ultima_alerta_critica BOOLEAN NOT NULL DEFAULT FALSE;
 """
 
-# "Especialidades" cubre productos que no son un corte crudo de res/cerdo/pollo ni
-# embutido (salsas, condimentos, preparados de la casa, etc.).
-CATEGORIAS_PRODUCTO = ("Res", "Cerdo", "Pollo", "Embutidos", "Especialidades")
+# "Especialidades" cubre productos que no son un corte crudo de res (salsas, condimentos,
+# preparados de la casa, etc.). Esta lista alimenta los botones de filtro del Inventario y del
+# punto de venta y las opciones del formulario de producto.
+CATEGORIAS_PRODUCTO = ("Res", "Especialidades")
 
-# Prefijo del código autogenerado por categoría (C-001, E-012, etc. — como en el prototipo).
+# Prefijo del código autogenerado por categoría (C-001, S-012, etc. — como en el prototipo).
 PREFIJO_CODIGO_POR_CATEGORIA = {
     "Res": "C",
-    "Cerdo": "P",
-    "Pollo": "A",
-    "Embutidos": "E",
     "Especialidades": "S",
 }
 
